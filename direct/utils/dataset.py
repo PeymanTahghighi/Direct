@@ -6,6 +6,7 @@ from typing import List
 
 from direct.types import PathOrString
 from direct.utils.io import check_is_valid_url, read_list
+import os
 
 
 def get_filenames_for_datasets_from_config(cfg, files_root: PathOrString, data_root: pathlib.Path):
@@ -28,7 +29,7 @@ def get_filenames_for_datasets_from_config(cfg, files_root: PathOrString, data_r
     return get_filenames_for_datasets(lists, files_root, data_root)
 
 
-def get_filenames_for_datasets(lists: List[PathOrString], files_root: PathOrString, data_root: pathlib.Path):
+def get_filenames_for_datasets(dataset_name: str,base_path: pathlib.Path, file_names: List[PathOrString]):
     """Given lists of filenames of data points, concatenate these into a large list of full filenames.
 
     Parameters
@@ -42,17 +43,33 @@ def get_filenames_for_datasets(lists: List[PathOrString], files_root: PathOrStri
     list of filenames or None
     """
     # Build the path, know that files_root can also be a URL
-    is_url = check_is_valid_url(files_root)
+    #is_url = check_is_valid_url(files_root)
 
-    filter_filenames = []
-    for curr_list in lists:
-        if not is_url:
-            path_to_list = pathlib.Path(files_root) / curr_list
-        else:
-            # The path needs to be extended / and '...' needs to be parsed. The urljoin handles this correctly
-            # Note: any query arguments are dropped. So any temporary keys such as ?Q=XYZ will not be added to the URL.
-            path_to_list = urllib.parse.urljoin(files_root, curr_list)
+    ret = [];
 
-        filter_filenames += [data_root / pathlib.Path(_) for _ in read_list(path_to_list)]
+    if dataset_name == 'AHEAD':
+        ret.extend(os.path.join(base_path, 'ax', d[:d.rfind('.')] + '_ax' + '.h5') for d in file_names);
+        ret.extend(os.path.join(base_path, 'cor', d[:d.rfind('.')] + '_cor' + '.h5') for d in file_names);
+        ret.extend(os.path.join(base_path, 'sag',  d[:d.rfind('.')] + '_sag' + '.h5') for d in file_names);
+        print(ret);
+    
+    elif dataset_name == 'stanford3d':
+        ret.extend(os.path.join(base_path, 'Ax', d) for d in file_names);
+        ret.extend(os.path.join(base_path, 'Sag', d) for d in file_names);
+        ret.extend(os.path.join(base_path, 'Cor', d) for d in file_names);
+        print(ret);
+    
+    elif dataset_name == 'CC359':
+        ret.extend(os.path.join(base_path, 'Ax', d) for d in file_names);
+        ret.extend(os.path.join(base_path, 'Sag', d) for d in file_names);
+        ret.extend(os.path.join(base_path, 'Cor', d) for d in file_names);
+        print(ret);
+    
+    elif dataset_name == 'SKM-TEA':
+        ret.extend(os.path.join(base_path, "E1_" + d) for d in file_names);
+        ret.extend(os.path.join(base_path, "E2_" + d) for d in file_names);
+        print(ret);
+    else:
+        ret = [os.path.join(base_path, f) for f in file_names];
 
-    return filter_filenames
+    return ret

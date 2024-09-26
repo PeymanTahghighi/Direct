@@ -4,8 +4,8 @@ physics:
 training:
     datasets:
         -   name: FastMRI
-            filenames_lists:
-                - ../lists/train.lst
+            sheet_name: 'FastMRI-brain'
+            base_path: 'D:/Internship-Foqus/code/foqusMRI/dataset'
             transforms:
                 cropping:
                     crop: null
@@ -18,8 +18,8 @@ training:
                     accelerations: [4]
                     center_fractions: [0.08]
         -   name: FastMRI
-            filenames_lists:
-                - ../lists/train.lst
+            sheet_name: 'FastMRI-knee'
+            base_path: 'D:/Internship-Foqus/code/foqusMRI/dataset'
             transforms:
                 cropping:
                     crop: null
@@ -29,9 +29,10 @@ training:
                     scaling_key: masked_kspace  # Compute the image normalization based on the masked_kspace maximum
                 masking:
                     name: FastMRIRandom
-                    accelerations: [8]
-                    center_fractions: [0.04]
+                    accelerations: [4]
+                    center_fractions: [0.08]
     batch_size: 1  # This is the batch size per GPU!
+    num_workers: 2
     optimizer: Adam
     lr: 0.0002
     weight_decay: 0.0
@@ -56,8 +57,8 @@ validation:
     datasets:
         # Twice the same dataset but a different acceleration factor
         -   name: FastMRI
-            filenames_lists:
-                - ../lists/val.lst
+            sheet_name: 'FastMRI-brain'
+            base_path: 'D:/Internship-Foqus/code/foqusMRI/dataset'
             transforms:
                 cropping:
                     crop: null
@@ -71,8 +72,8 @@ validation:
                     center_fractions: [0.08]
             text_description: 4x  # Description for logging
         -   name: FastMRI
-            filenames_lists:
-                - ../lists/val.lst
+            sheet_name: 'FastMRI-brain'
+            base_path: 'D:/Internship-Foqus/code/foqusMRI/dataset'
             transforms:
                 cropping:
                     crop: null

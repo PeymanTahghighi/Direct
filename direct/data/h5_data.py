@@ -12,6 +12,8 @@ from torch.utils.data import Dataset
 from direct.types import PathOrString
 from direct.utils import cast_as_path
 from direct.utils.dataset import get_filenames_for_datasets
+import os
+import pickle
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,7 @@ class H5SliceData(Dataset):
         pass_dictionaries: Optional[Dict[str, Dict]] = None,
         pass_h5s: Optional[Dict[str, List]] = None,
         slice_data: Optional[slice] = None,
+        data_type = 'train'
     ) -> None:
         """Initialize the dataset.
 
@@ -130,7 +133,7 @@ class H5SliceData(Dataset):
             self.logger.info("Using %s h5 files in %s.", len(filenames), self.root)
 
         self.parse_filenames_data(
-            filenames, extra_h5s=pass_h5s, filter_slice=slice_data
+            dataset_description, filenames, extra_h5s=pass_h5s, filter_slice=slice_data, data_type = data_type
         )  # Collect information on the image masks_dict.
         self.pass_h5s = pass_h5s
 
@@ -145,35 +148,56 @@ class H5SliceData(Dataset):
         if self.text_description:
             self.logger.info("Dataset description: %s.", self.text_description)
 
-    def parse_filenames_data(self, filenames, extra_h5s=None, filter_slice=None):
+    def parse_filenames_data(self, dataset_description, filenames, extra_h5s=None, filter_slice=None, data_type = 'train'):
         current_slice_number = 0  # This is required to keep track of where a volume is in the dataset
 
-        for idx, filename in enumerate(filenames):
-            if len(filenames) < 5 or idx % (len(filenames) // 5) == 0 or len(filenames) == (idx + 1):
-                self.logger.info(f"Parsing: {(idx + 1) / len(filenames) * 100:.2f}%.")
-            try:
-                kspace_shape = h5py.File(filename, "r")["kspace"].shape  # pylint: disable = E1101
-                self.verify_extra_h5_integrity(filename, kspace_shape, extra_h5s=extra_h5s)  # pylint: disable = E1101
+        #check if we have already cached this dataset
+        if os.path.exists(f'{data_type}_cache.ch') is not False:
+            with open(f'{data_type}_cache.ch', 'rb') as f:
+                dataset_cache = pickle.load(f);
+        else:
+            dataset_cache = {};
 
-            except OSError as exc:
-                self.logger.warning("%s failed with OSError: %s. Skipping...", filename, exc)
-                continue
+        if dataset_description not in dataset_cache:
+            self.logger.info(f'{dataset_description} does not exists in cache, loading from scratch...')
+            for idx, filename in enumerate(filenames):
+                if len(filenames) < 5 or idx % (len(filenames) // 5) == 0 or len(filenames) == (idx + 1):
+                    self.logger.info(f"Parsing: {(idx + 1) / len(filenames) * 100:.2f}%.")
+                try:
+                    kspace_shape = h5py.File(filename, "r")["kspace"].shape  # pylint: disable = E1101
+                    self.verify_extra_h5_integrity(filename, kspace_shape, extra_h5s=extra_h5s)  # pylint: disable = E1101
 
-            num_slices = kspace_shape[0]
-            if not filter_slice:
-                self.data += [(filename, _) for _ in range(num_slices)]
+                except OSError as exc:
+                    self.logger.warning("%s failed with OSError: %s. Skipping...", filename, exc)
+                    continue
 
-            elif isinstance(filter_slice, slice):
-                admissible_indices = range(*filter_slice.indices(num_slices))
-                self.data += [(filename, _) for _ in range(num_slices) if _ in admissible_indices]
-                num_slices = len(admissible_indices)
+                num_slices = kspace_shape[0]
+                if not filter_slice:
+                    self.data += [(filename, _) for _ in range(num_slices)]
 
-            else:
-                raise NotImplementedError
+                elif isinstance(filter_slice, slice):
+                    admissible_indices = range(*filter_slice.indices(num_slices))
+                    self.data += [(filename, _) for _ in range(num_slices) if _ in admissible_indices]
+                    num_slices = len(admissible_indices)
 
-            self.volume_indices[filename] = range(current_slice_number, current_slice_number + num_slices)
+                else:
+                    raise NotImplementedError
 
-            current_slice_number += num_slices
+                self.volume_indices[filename] = range(current_slice_number, current_slice_number + num_slices)
+
+                current_slice_number += num_slices
+            
+            #done loading files, cache it
+            dataset_cache[dataset_description] = [self.data, self.volume_indices]
+        
+            with open(f'{data_type}_cache.ch', 'wb') as f:
+                pickle.dump(dataset_cache, f);
+        
+        else:
+            self.logger.info(f'{dataset_description} found in cache, loading from cache...')
+            self.data, self.volume_indices = dataset_cache[dataset_description];
+            
+
 
     @staticmethod
     def verify_extra_h5_integrity(image_fn, _, extra_h5s):
@@ -283,7 +307,8 @@ class H5SliceData(Dataset):
             for extra_key in self.extra_keys:
                 if extra_key == "attrs":
                     raise ValueError("attrs need to be passed by setting `pass_attrs = True`.")
-                extra_data[extra_key] = data[extra_key][()]
+                if extra_key in data.keys():
+                    extra_data[extra_key] = data[extra_key][()]
         data.close()
         return curr_data, extra_data
 

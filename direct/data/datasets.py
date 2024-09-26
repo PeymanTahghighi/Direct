@@ -238,38 +238,47 @@ class FakeMRIBlobsDataset(Dataset):
         return sample
 
 
-def _parse_fastmri_header(xml_header: str) -> dict:
+def _parse_fastmri_header(data: dict, key: str) -> dict:
     # Borrowed from: https://github.com/facebookresearch/\
     # fastMRI/blob/13560d2f198cc72f06e01675e9ecee509ce5639a/fastmri/data/mri_data.py#L23
-    et_root = etree.fromstring(xml_header)  # nosec
+    if key in data.keys():
+        xml_header = data[key];
+        et_root = etree.fromstring(xml_header)  # nosec
 
-    encodings = ["encoding", "encodedSpace", "matrixSize"]
-    encoding_size = (
-        int(_et_query(et_root, encodings + ["x"])),
-        int(_et_query(et_root, encodings + ["y"])),
-        int(_et_query(et_root, encodings + ["z"])),
-    )
-    reconstructions = ["encoding", "reconSpace", "matrixSize"]
-    reconstruction_size = (
-        int(_et_query(et_root, reconstructions + ["x"])),
-        int(_et_query(et_root, reconstructions + ["y"])),
-        int(_et_query(et_root, reconstructions + ["z"])),
-    )
+        encodings = ["encoding", "encodedSpace", "matrixSize"]
+        encoding_size = (
+            int(_et_query(et_root, encodings + ["x"])),
+            int(_et_query(et_root, encodings + ["y"])),
+            int(_et_query(et_root, encodings + ["z"])),
+        )
+        reconstructions = ["encoding", "reconSpace", "matrixSize"]
+        reconstruction_size = (
+            int(_et_query(et_root, reconstructions + ["x"])),
+            int(_et_query(et_root, reconstructions + ["y"])),
+            int(_et_query(et_root, reconstructions + ["z"])),
+        )
 
-    limits = ["encoding", "encodingLimits", "kspace_encoding_step_1"]
-    encoding_limits_center = int(_et_query(et_root, limits + ["center"]))
-    encoding_limits_max = int(_et_query(et_root, limits + ["maximum"])) + 1
+        limits = ["encoding", "encodingLimits", "kspace_encoding_step_1"]
+        encoding_limits_center = int(_et_query(et_root, limits + ["center"]))
+        encoding_limits_max = int(_et_query(et_root, limits + ["maximum"])) + 1
 
-    padding_left = encoding_size[1] // 2 - encoding_limits_center
-    padding_right = padding_left + encoding_limits_max
+        padding_left = encoding_size[1] // 2 - encoding_limits_center
+        padding_right = padding_left + encoding_limits_max
+
+        
+    else:
+        #sample lack ismrmrd_header so we create the metadata with zero data
+        padding_left = 0
+        padding_right = 0
+        encoding_size = (0, 0, 0)
+        reconstruction_size = (0, 0, 0)
 
     metadata = {
-        "padding_left": padding_left,
-        "padding_right": padding_right,
-        "encoding_size": encoding_size,
-        "reconstruction_size": reconstruction_size,
-    }
-
+            "padding_left": padding_left,
+            "padding_right": padding_right,
+            "encoding_size": encoding_size,
+            "reconstruction_size": reconstruction_size,
+        }
     return metadata
 
 
@@ -326,6 +335,7 @@ class FastMRIDataset(H5SliceData):
         initial_images_key: Optional[str] = None,
         noise_data: Optional[dict] = None,
         pass_h5s: Optional[dict] = None,
+        data_type = 'train',
         **kwargs,
     ) -> None:
         # TODO: Clean up Dataset class such that only **kwargs need to get parsed.
@@ -344,8 +354,10 @@ class FastMRIDataset(H5SliceData):
             extra_keys=tuple(extra_keys),
             pass_attrs=pass_max,
             text_description=kwargs.get("text_description", None),
+            dataset_description=kwargs.get("sheet_name", None),
             pass_h5s=pass_h5s,
             pass_dictionaries=kwargs.get("pass_dictionaries", None),
+            data_type=data_type
         )
         if self.sensitivity_maps is not None:
             raise NotImplementedError(
@@ -368,11 +380,12 @@ class FastMRIDataset(H5SliceData):
         sample = super().__getitem__(idx)
 
         if self.pass_attrs:
-            sample["scaling_factor"] = sample["attrs"]["max"]
+            #sample["scaling_factor"] = sample["attrs"]["max"]
             del sample["attrs"]
-
-        sample.update(_parse_fastmri_header(sample["ismrmrd_header"]))
-        del sample["ismrmrd_header"]
+        
+        sample.update(_parse_fastmri_header(sample, "ismrmrd_header"))
+        if "ismrmrd_header" in sample.keys():
+            del sample["ismrmrd_header"]
         # Some images have strange behavior, e.g. FLAIR 203.
         image_shape = sample["kspace"].shape
         if image_shape[-1] < sample["reconstruction_size"][-2]:  # reconstruction size is (x, y, z)
@@ -1367,6 +1380,7 @@ class SheppLoganT2Dataset(SheppLoganDataset):
 def build_dataset(
     name: str,
     transforms: Optional[Callable] = None,
+    data_type = 'train',
     **kwargs: dict[str, Any],
 ) -> Dataset:
     """Builds dataset with name :class:`name + "Dataset"` from keyword arguments.
@@ -1406,7 +1420,7 @@ def build_dataset(
     logger.info("Building dataset for: %s", name)
     dataset_class: Callable = str_to_class("direct.data.datasets", name + "Dataset")
     logger.debug("Dataset class: %s", dataset_class)
-    dataset = dataset_class(transform=transforms, **kwargs)
+    dataset = dataset_class(transform=transforms, data_type = data_type, **kwargs)
 
     logger.debug("Dataset: %s", str(dataset))
 
@@ -1416,6 +1430,7 @@ def build_dataset(
 def build_dataset_from_input(
     transforms: Callable,
     dataset_config: DictConfig,
+    data_type = 'train',
     **kwargs: dict[str, Any],
 ) -> Dataset:
     """Builds dataset from input keyword arguments and configuration file.
@@ -1470,6 +1485,7 @@ def build_dataset_from_input(
     dataset = build_dataset(
         name=dataset_config.name,  # type: ignore
         transforms=transforms,
+        data_type = data_type,
         **kwargs,
         **config_kwargs,
     )

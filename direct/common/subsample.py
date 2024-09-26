@@ -23,8 +23,8 @@ from scipy.linalg import toeplitz
 from scipy.ndimage import rotate
 
 import direct.data.transforms as T
-from direct.common._gaussian import gaussian_mask_1d, gaussian_mask_2d  # pylint: disable=no-name-in-module
-from direct.common._poisson import poisson as _poisson  # pylint: disable=no-name-in-module
+#from direct.common._gaussian import gaussian_mask_1d, gaussian_mask_2d  # pylint: disable=no-name-in-module
+#from direct.common._poisson import poisson as _poisson  # pylint: disable=no-name-in-module
 from direct.environment import DIRECT_CACHE_DIR
 from direct.types import DirectEnum, MaskFuncMode, Number, TensorOrNdarray
 from direct.utils import str_to_class

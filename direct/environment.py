@@ -572,6 +572,7 @@ def setup_inference_environment(
     )
     return environment(env.cfg, env.engine)
 
+import getpass
 
 class Args(argparse.ArgumentParser):
     """Defines global default arguments."""
@@ -597,7 +598,7 @@ class Args(argparse.ArgumentParser):
             help='Which device to train on. Set to "cuda" to use the GPU.',
         )
         self.add_argument("--seed", default=42, type=int, help="Seed for random number generators.")
-        self.add_argument("--num-workers", type=int, default=4, help="Number of workers.")
+        self.add_argument("--num-workers", type=int, default=1, help="Number of workers.")
         self.add_argument("--mixed-precision", help="Use mixed precision.", action="store_true")
         self.add_argument("--debug", help="Set debug mode true.", action="store_true")
 
@@ -639,7 +640,7 @@ class Args(argparse.ArgumentParser):
         # Taken from: https://github.com/facebookresearch/detectron2/blob/bd2ea475b693a88c063e05865d13954d50242857/detectron2/engine/defaults.py#L49 # noqa
         # PyTorch still may leave orphan processes in multi-gpu training. Therefore we use a deterministic way
         # to obtain port, so that users are aware of orphan processes by seeing the port occupied.
-        port = 2**15 + 2**14 + hash(os.getuid()) % 2**14
+        port = 2**15 + 2**14 + hash(getpass.getuser()) % 2**14
         self.add_argument(
             "--dist-url",
             default=f"tcp://127.0.0.1:{port}",

@@ -17,7 +17,7 @@ class TensorboardConfig(BaseConfig):
 @dataclass
 class LoggingConfig(BaseConfig):
     log_as_image: Optional[List[str]] = None
-    tensorboard: TensorboardConfig = TensorboardConfig()
+    tensorboard: TensorboardConfig = field(default_factory =TensorboardConfig)
 
 
 @dataclass
@@ -50,6 +50,7 @@ class TrainingConfig(BaseConfig):
     lr: float = 5e-4
     weight_decay: float = 1e-6
     batch_size: int = 2
+    num_workers: int = 1
 
     # LR Scheduler
     lr_step_size: int = 5000
@@ -70,10 +71,10 @@ class TrainingConfig(BaseConfig):
     gradient_debug: bool = False
 
     # Loss
-    loss: LossConfig = LossConfig()
+    loss: LossConfig = field(default_factory =LossConfig)
 
     # Checkpointer
-    checkpointer: CheckpointerConfig = CheckpointerConfig()
+    checkpointer: CheckpointerConfig = field(default_factory =CheckpointerConfig)
 
     # Metrics
     metrics: List[str] = field(default_factory=lambda: [])
@@ -93,7 +94,7 @@ class ValidationConfig(BaseConfig):
 
 @dataclass
 class InferenceConfig(BaseConfig):
-    dataset: DatasetConfig = DatasetConfig()
+    dataset: DatasetConfig = field(default_factory =DatasetConfig)
     batch_size: int = 1
     crop: Optional[str] = None
 
@@ -117,10 +118,10 @@ class DefaultConfig(BaseConfig):
     model: ModelConfig = MISSING
     additional_models: Optional[Any] = None
 
-    physics: PhysicsConfig = PhysicsConfig()
+    physics: PhysicsConfig = field(default_factory =PhysicsConfig)
 
-    training: TrainingConfig = TrainingConfig()  # This should be optional.
-    validation: ValidationConfig = ValidationConfig()  # This should be optional.
+    training: TrainingConfig = field(default_factory =TrainingConfig)  # This should be optional.
+    validation: ValidationConfig = field(default_factory =ValidationConfig)  # This should be optional.
     inference: Optional[InferenceConfig] = None
 
-    logging: LoggingConfig = LoggingConfig()
+    logging: LoggingConfig = field(default_factory =LoggingConfig)

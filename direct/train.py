@@ -23,8 +23,10 @@ from direct.environment import setup_training_environment
 from direct.launch import launch
 from direct.types import PathOrString
 from direct.utils import dict_flatten, remove_keys, set_all_seeds, str_to_class
-from direct.utils.dataset import get_filenames_for_datasets_from_config
+from direct.utils.dataset import get_filenames_for_datasets
 from direct.utils.io import check_is_valid_url, read_json
+
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -90,11 +92,12 @@ def build_training_datasets_from_environment(
     env,
     datasets_config: List[DictConfig],
     lists_root: Optional[PathOrString] = None,
-    data_root: Optional[PathOrString] = None,
+    data_sheet: Optional[PathOrString] = None,
     initial_images: Optional[Union[List[pathlib.Path], None]] = None,
     initial_kspaces: Optional[Union[List[pathlib.Path], None]] = None,
     pass_text_description: bool = True,
     pass_dictionaries: Optional[Dict[str, Dict]] = None,
+    data_type: str = 'train'
 ):
     datasets = []
     for idx, dataset_config in enumerate(datasets_config):
@@ -114,12 +117,18 @@ def build_training_datasets_from_environment(
             dataset_args.update({"initial_images": initial_images})
         if initial_kspaces is not None:
             dataset_args.update({"initial_kspaces": initial_kspaces})
-        if data_root is not None:
+        if data_sheet is not None:
+            xls = pd.ExcelFile(data_sheet);
+            sheet_name = dataset_args['dataset_config']['sheet_name']
+            df = pd.read_excel(xls, sheet_name);
+            names = [df.loc[l, 'Name'] for l in np.where(df['New subsets'] == data_type)[0]]
+            data_root = dataset_config['base_path']
             dataset_args.update({"data_root": data_root})
-            filenames_filter = get_filenames_for_datasets_from_config(dataset_config, lists_root, data_root)
+            filenames_filter = get_filenames_for_datasets(dataset_config['sheet_name'], data_root, names)
             dataset_args.update({"filenames_filter": filenames_filter})
         if pass_dictionaries is not None:
             dataset_args.update({"pass_dictionaries": pass_dictionaries})
+        dataset_args.update({'data_type': data_type});
         dataset = build_dataset_from_input(**dataset_args)
 
         logger.debug("Transforms %s / %s :\n%s", idx + 1, len(datasets_config), transforms)
@@ -137,8 +146,8 @@ def build_training_datasets_from_environment(
 
 def setup_train(
     run_name: str,
-    training_root: Union[pathlib.Path, None],
-    validation_root: Union[pathlib.Path, None],
+    data_sheet_train: Union[pathlib.Path, None],
+    data_sheet_validation: Union[pathlib.Path, None],
     base_directory: pathlib.Path,
     cfg_filename: PathOrString,
     force_validation: bool,
@@ -182,8 +191,8 @@ def setup_train(
         ]
         training_dataset_args.update({"pass_dictionaries": pass_dictionaries})
 
-    if training_root is not None:
-        training_dataset_args.update({"data_root": training_root})
+    if data_sheet_train is not None:
+        training_dataset_args.update({"data_sheet": data_sheet_train})
         # Get the lists_root. Assume now the given path is with respect to the config file.
         lists_root = get_root_of_file(cfg_filename)
         if lists_root is not None:
@@ -205,8 +214,8 @@ def setup_train(
             "datasets_config": env.cfg.validation.datasets,
             "pass_text_description": True,
         }
-        if validation_root is not None:
-            validation_dataset_args.update({"data_root": validation_root})
+        if data_sheet_validation is not None:
+            validation_dataset_args.update({"data_sheet": data_sheet_validation})
             lists_root = get_root_of_file(cfg_filename)
             if lists_root is not None:
                 validation_dataset_args.update({"lists_root": lists_root})
@@ -214,7 +223,7 @@ def setup_train(
             validation_dataset_args.update({"initial_images": initial_images[1]})
         if initial_kspace is not None:
             validation_dataset_args.update({"initial_kspaces": initial_kspace[1]})
-
+        validation_dataset_args.update({'data_type': 'val'});
         # Build validation datasets
         validation_data = build_training_datasets_from_environment(**validation_dataset_args)
     else:
@@ -275,6 +284,7 @@ def setup_train(
         else:
             initialization_checkpoint = env.cfg.training.model_checkpoint
 
+    num_workers = env.cfg.training['num_workers'];
     env.engine.train(
         optimizer,
         lr_scheduler,
@@ -314,8 +324,8 @@ def train_from_argparse(args: argparse.Namespace):
         args.machine_rank,
         args.dist_url,
         run_name,
-        args.training_root,
-        args.validation_root,
+        args.data_sheet_train,
+        args.data_sheet_validation,
         args.experiment_dir,
         args.cfg_file,
         args.force_validation,

@@ -21,6 +21,8 @@ from direct.data.mri_transforms import (
     TransformsType,
 )
 
+from dataclasses import field
+
 
 @dataclass
 class CropTransformConfig(BaseConfig):
@@ -125,14 +127,14 @@ class TransformsConfig(BaseConfig):
         Default is `HalfSplitType.VERTICAL`.
     """
 
-    masking: Optional[MaskingConfig] = MaskingConfig()
-    cropping: CropTransformConfig = CropTransformConfig()
-    augmentation: AugmentationTransformConfig = AugmentationTransformConfig()
-    random_augmentations: RandomAugmentationTransformsConfig = RandomAugmentationTransformsConfig()
+    masking: Optional[MaskingConfig] = field(default_factory = MaskingConfig)
+    cropping: CropTransformConfig = field(default_factory = CropTransformConfig)
+    augmentation: AugmentationTransformConfig = field(default_factory = AugmentationTransformConfig)
+    random_augmentations: RandomAugmentationTransformsConfig = field(default_factory =RandomAugmentationTransformsConfig)
     padding_eps: float = 0.001
     estimate_body_coil_image: bool = False
-    sensitivity_map_estimation: SensitivityMapEstimationTransformConfig = SensitivityMapEstimationTransformConfig()
-    normalization: NormalizationTransformConfig = NormalizationTransformConfig()
+    sensitivity_map_estimation: SensitivityMapEstimationTransformConfig = field(default_factory = SensitivityMapEstimationTransformConfig)
+    normalization: NormalizationTransformConfig = field(default_factory =NormalizationTransformConfig)
     delete_acs_mask: bool = True
     delete_kspace: bool = True
     image_recon_type: ReconstructionType = ReconstructionType.RSS
@@ -152,7 +154,7 @@ class TransformsConfig(BaseConfig):
 @dataclass
 class DatasetConfig(BaseConfig):
     name: str = MISSING
-    transforms: BaseConfig = TransformsConfig()
+    transforms: BaseConfig = field(default_factory =TransformsConfig)
     text_description: Optional[str] = None
 
 
