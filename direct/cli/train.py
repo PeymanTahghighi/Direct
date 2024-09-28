@@ -47,6 +47,7 @@ def register_parser(parser: argparse._SubParsersAction):
         default = 'D:\\Internship-Foqus\\third-party\\direct\\projects\\cvpr2022_recurrentvarnet\\fastmri\\AXT1_brain\\configs\\base_varnet.yaml',
         type=file_or_url,
     )
+    
     train_parser.add_argument(
         "--initialization-checkpoint",
         type=file_or_url,

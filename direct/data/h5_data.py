@@ -132,9 +132,7 @@ class H5SliceData(Dataset):
         else:
             self.logger.info("Using %s h5 files in %s.", len(filenames), self.root)
 
-        self.parse_filenames_data(
-            dataset_description, filenames, extra_h5s=pass_h5s, filter_slice=slice_data, data_type = data_type
-        )  # Collect information on the image masks_dict.
+        self.kspace_context = kspace_context if kspace_context else 0
         self.pass_h5s = pass_h5s
 
         self.sensitivity_maps = cast_as_path(sensitivity_maps)
@@ -142,13 +140,16 @@ class H5SliceData(Dataset):
         self.extra_keys = extra_keys
         self.pass_dictionaries = pass_dictionaries
 
-        self.kspace_context = kspace_context if kspace_context else 0
         self.ndim = 2 if self.kspace_context == 0 else 3
+
+        self.parse_filenames_data(
+            dataset_description, filenames, extra_h5s=pass_h5s, filter_slice=slice_data, data_type = data_type
+        )  # Collect information on the image masks_dict.
 
         if self.text_description:
             self.logger.info("Dataset description: %s.", self.text_description)
 
-    def parse_filenames_data(self, dataset_description, filenames, extra_h5s=None, filter_slice=None, data_type = 'train'):
+    def parse_filenames_data(self, dataset_description, filepaths, extra_h5s=None, filter_slice=None, data_type = 'train'):
         current_slice_number = 0  # This is required to keep track of where a volume is in the dataset
 
         #check if we have already cached this dataset
@@ -159,31 +160,57 @@ class H5SliceData(Dataset):
             dataset_cache = {};
 
         if dataset_description not in dataset_cache:
+            #check if we have cache folder for this dataset, take the root of the first file,
+            #cache will be saved beside data root in a folder called cache
+            base_root = os.path.dirname(filepaths[0]);
+            if os.path.exists(os.path.join(base_root, f'cache_{data_type}')) is False:
+                os.makedirs(os.path.join(base_root, f'cache_{data_type}'));
+
+
             self.logger.info(f'{dataset_description} does not exists in cache, loading from scratch...')
-            for idx, filename in enumerate(filenames):
-                if len(filenames) < 5 or idx % (len(filenames) // 5) == 0 or len(filenames) == (idx + 1):
-                    self.logger.info(f"Parsing: {(idx + 1) / len(filenames) * 100:.2f}%.")
+            for idx, filepath in enumerate(filepaths):
+                if len(filepaths) < 5 or idx % (len(filepaths) // 5) == 0 or len(filepaths) == (idx + 1):
+                    self.logger.info(f"Parsing: {(idx + 1) / len(filepaths) * 100:.2f}%.")
                 try:
-                    kspace_shape = h5py.File(filename, "r")["kspace"].shape  # pylint: disable = E1101
-                    self.verify_extra_h5_integrity(filename, kspace_shape, extra_h5s=extra_h5s)  # pylint: disable = E1101
+                    kspace_shape = h5py.File(filepath, "r")["kspace"].shape  # pylint: disable = E1101
+                    num_slices = kspace_shape[0]
+                    for slice_no in range(num_slices):
+                        kspace, extra_data = self.get_slice_data(filepath, 0, pass_attrs=self.pass_attrs, extra_keys=self.extra_keys);
+
+                        sample = {"kspace": kspace, "filename": str(filepath), "slice_no": slice_no}
+
+                        # If the sensitivity maps exist, load these
+                        if self.sensitivity_maps:
+                            sensitivity_map, _ = self.get_slice_data(self.sensitivity_maps / filepath.name, slice_no)
+                            sample["sensitivity_map"] = sensitivity_map
+
+                        sample.update(extra_data)
+
+                        filename = os.path.basename(filepath);
+                        filename = filename[:filename.rfind('.')];
+                        with open(os.path.join(base_root,f'cache_{data_type}', f'{filename}_{slice_no}_cache.ch'), 'wb') as f:
+                            pickle.dump(sample, f);
+                        self.data.append(os.path.join(base_root, f'cache_{data_type}', f'{filename}_{slice_no}_cache.ch'));
+
+                    #self.verify_extra_h5_integrity(filepath, kspace_shape, extra_h5s=extra_h5s)  # pylint: disable = E1101
 
                 except OSError as exc:
-                    self.logger.warning("%s failed with OSError: %s. Skipping...", filename, exc)
+                    self.logger.warning("%s failed with OSError: %s. Skipping...", filepath, exc)
                     continue
 
-                num_slices = kspace_shape[0]
-                if not filter_slice:
-                    self.data += [(filename, _) for _ in range(num_slices)]
+                
+                # if not filter_slice:
+                #     self.data += [(filepath, _) for _ in range(num_slices)]
 
-                elif isinstance(filter_slice, slice):
-                    admissible_indices = range(*filter_slice.indices(num_slices))
-                    self.data += [(filename, _) for _ in range(num_slices) if _ in admissible_indices]
-                    num_slices = len(admissible_indices)
+                # elif isinstance(filter_slice, slice):
+                #     admissible_indices = range(*filter_slice.indices(num_slices))
+                #     self.data += [(filepath, _) for _ in range(num_slices) if _ in admissible_indices]
+                #     num_slices = len(admissible_indices)
 
-                else:
-                    raise NotImplementedError
+                # else:
+                #     raise NotImplementedError
 
-                self.volume_indices[filename] = range(current_slice_number, current_slice_number + num_slices)
+                self.volume_indices[filepath] = range(current_slice_number, current_slice_number + num_slices)
 
                 current_slice_number += num_slices
             
@@ -224,42 +251,44 @@ class H5SliceData(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
-        filename, slice_no = self.data[idx]
-        filename = pathlib.Path(filename)
-        metadata = None if not self.metadata else self.metadata[filename.name]
+        with open(self.data[idx], 'rb') as f:
+            sample = pickle.load(f);
+        # filename, slice_no = self.data[idx]
+        # filename = pathlib.Path(filename)
+        # metadata = None if not self.metadata else self.metadata[filename.name]
 
-        kspace, extra_data = self.get_slice_data(
-            filename, slice_no, pass_attrs=self.pass_attrs, extra_keys=self.extra_keys
-        )
+        # kspace, extra_data = self.get_slice_data(
+        #     filename, slice_no, pass_attrs=self.pass_attrs, extra_keys=self.extra_keys
+        # )
 
-        if kspace.ndim == 2:  # Singlecoil data does not always have coils at the first axis.
-            kspace = kspace[np.newaxis, ...]
+        # if kspace.ndim == 2:  # Singlecoil data does not always have coils at the first axis.
+        #     kspace = kspace[np.newaxis, ...]
 
-        # TODO: Write a custom collate function which disables batching for certain keys
-        sample = {"kspace": kspace, "filename": str(filename), "slice_no": slice_no}
+        # # TODO: Write a custom collate function which disables batching for certain keys
+        # sample = {"kspace": kspace, "filename": str(filename), "slice_no": slice_no}
 
-        # If the sensitivity maps exist, load these
-        if self.sensitivity_maps:
-            sensitivity_map, _ = self.get_slice_data(self.sensitivity_maps / filename.name, slice_no)
-            sample["sensitivity_map"] = sensitivity_map
+        # # If the sensitivity maps exist, load these
+        # if self.sensitivity_maps:
+        #     sensitivity_map, _ = self.get_slice_data(self.sensitivity_maps / filename.name, slice_no)
+        #     sample["sensitivity_map"] = sensitivity_map
 
-        if metadata is not None:
-            sample["metadata"] = metadata
+        # if metadata is not None:
+        #     sample["metadata"] = metadata
 
-        sample.update(extra_data)
+        # sample.update(extra_data)
 
-        if self.pass_dictionaries:
-            for key in self.pass_dictionaries:
-                if key in sample:
-                    raise ValueError(f"Trying to add key {key} to sample dict, but this key already exists.")
-                sample[key] = self.pass_dictionaries[key][filename.name]
+        # if self.pass_dictionaries:
+        #     for key in self.pass_dictionaries:
+        #         if key in sample:
+        #             raise ValueError(f"Trying to add key {key} to sample dict, but this key already exists.")
+        #         sample[key] = self.pass_dictionaries[key][filename.name]
 
-        if self.pass_h5s:
-            for key, (h5_key, path) in self.pass_h5s.items():
-                curr_slice, _ = self.get_slice_data(path / filename.name, slice_no, key=h5_key)
-                if key in sample:
-                    raise ValueError(f"Trying to add key {key} to sample dict, but this key already exists.")
-                sample[key] = curr_slice
+        # if self.pass_h5s:
+        #     for key, (h5_key, path) in self.pass_h5s.items():
+        #         curr_slice, _ = self.get_slice_data(path / filename.name, slice_no, key=h5_key)
+        #         if key in sample:
+        #             raise ValueError(f"Trying to add key {key} to sample dict, but this key already exists.")
+        #         sample[key] = curr_slice
 
         return sample
 
