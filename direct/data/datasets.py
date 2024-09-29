@@ -325,6 +325,7 @@ class FastMRIDataset(H5SliceData):
         self,
         data_root: pathlib.Path,
         transform: Optional[Callable] = None,
+        data_cache_tranform: Optional[Callable] = None,
         filenames_filter: Optional[list[PathOrString]] = None,
         filenames_lists: Union[list[PathOrString], None] = None,
         filenames_lists_root: Union[PathOrString, None] = None,
@@ -357,7 +358,8 @@ class FastMRIDataset(H5SliceData):
             dataset_description=kwargs.get("sheet_name", None),
             pass_h5s=pass_h5s,
             pass_dictionaries=kwargs.get("pass_dictionaries", None),
-            data_type=data_type
+            data_type=data_type,
+            data_cache_tranform = data_cache_tranform
         )
         if self.sensitivity_maps is not None:
             raise NotImplementedError(
@@ -1380,6 +1382,7 @@ class SheppLoganT2Dataset(SheppLoganDataset):
 def build_dataset(
     name: str,
     transforms: Optional[Callable] = None,
+    data_cache_tranform: Optional[Callable] = None,
     data_type = 'train',
     **kwargs: dict[str, Any],
 ) -> Dataset:
@@ -1420,7 +1423,7 @@ def build_dataset(
     logger.info("Building dataset for: %s", name)
     dataset_class: Callable = str_to_class("direct.data.datasets", name + "Dataset")
     logger.debug("Dataset class: %s", dataset_class)
-    dataset = dataset_class(transform=transforms, data_type = data_type, **kwargs)
+    dataset = dataset_class(transform=transforms, data_cache_tranform = data_cache_tranform, data_type = data_type, **kwargs)
 
     logger.debug("Dataset: %s", str(dataset))
 
@@ -1431,6 +1434,7 @@ def build_dataset_from_input(
     transforms: Callable,
     dataset_config: DictConfig,
     data_type = 'train',
+    data_cache_tranform: Callable = None,
     **kwargs: dict[str, Any],
 ) -> Dataset:
     """Builds dataset from input keyword arguments and configuration file.
@@ -1486,6 +1490,7 @@ def build_dataset_from_input(
         name=dataset_config.name,  # type: ignore
         transforms=transforms,
         data_type = data_type,
+        data_cache_tranform = data_cache_tranform,
         **kwargs,
         **config_kwargs,
     )

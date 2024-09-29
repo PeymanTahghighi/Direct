@@ -2017,6 +2017,9 @@ def build_supervised_mri_transforms(
     scaling_key: TransformKey = TransformKey.MASKED_KSPACE,
     scale_percentile: Optional[float] = 0.99,
     use_seed: bool = True,
+    to_tensor: bool = True,
+    apply_mask:bool = True,
+    compute_scaling_factor:bool = True
 ) -> DirectTransform:
     r"""Builds supervised MRI transforms.
 
@@ -2126,7 +2129,10 @@ def build_supervised_mri_transforms(
     DirectTransform
         An MRI transformation object.
     """
-    mri_transforms: list[Callable] = [ToTensor()]
+    mri_transforms: list[Callable] = [];
+    if to_tensor:
+        mri_transforms: list[Callable] = [ToTensor()]
+
     if crop:
         mri_transforms += [
             CropKspace(
@@ -2218,25 +2224,30 @@ def build_supervised_mri_transforms(
         ]
     if delete_acs_mask:
         mri_transforms += [DeleteKeys(keys=["acs_mask"])]
-    mri_transforms += [
-        ApplyMask(
-            sampling_mask_key="sampling_mask",
-            input_kspace_key=KspaceKey.KSPACE,
-            target_kspace_key=KspaceKey.MASKED_KSPACE,
-        ),
-    ]
-    mri_transforms += [
-        ComputeScalingFactor(
-            normalize_key=scaling_key, percentile=scale_percentile, scaling_factor_key=TransformKey.SCALING_FACTOR
-        ),
-        Normalize(
-            scaling_factor_key=TransformKey.SCALING_FACTOR,
-            keys_to_normalize=[
-                KspaceKey.KSPACE,
-                KspaceKey.MASKED_KSPACE,
-            ],  # Only these two keys are in the sample here
-        ),
-    ]
+    
+    if apply_mask:
+        mri_transforms += [
+            ApplyMask(
+                sampling_mask_key="sampling_mask",
+                input_kspace_key=KspaceKey.KSPACE,
+                target_kspace_key=KspaceKey.MASKED_KSPACE,
+            ),
+        ]
+    
+    if compute_scaling_factor:
+        mri_transforms += [
+            ComputeScalingFactor(
+                normalize_key=scaling_key, percentile=scale_percentile, scaling_factor_key=TransformKey.SCALING_FACTOR
+            ),
+            Normalize(
+                scaling_factor_key=TransformKey.SCALING_FACTOR,
+                keys_to_normalize=[
+                    KspaceKey.KSPACE,
+                    KspaceKey.MASKED_KSPACE,
+                ],  # Only these two keys are in the sample here
+            ),
+        ]
+
     mri_transforms += [
         ComputeImage(
             kspace_key=KspaceKey.KSPACE,
@@ -2297,6 +2308,9 @@ def build_mri_transforms(
     mask_split_type: MaskSplitterType = MaskSplitterType.GAUSSIAN,
     mask_split_gaussian_std: float = 3.0,
     mask_split_half_direction: HalfSplitType = HalfSplitType.VERTICAL,
+    to_tensor = True,
+    apply_mask:bool = True,
+    compute_scaling_factor:bool = True
 ) -> DirectTransform:
     r"""Build transforms for MRI.
 
@@ -2478,6 +2492,9 @@ def build_mri_transforms(
         scaling_key=scaling_key,
         scale_percentile=scale_percentile,
         use_seed=use_seed,
+        to_tensor=to_tensor,
+        apply_mask= apply_mask,
+        compute_scaling_factor= compute_scaling_factor
     ).transforms
 
     mri_transforms += [AddBooleanKeysModule(["is_ssl"], [transforms_type != TransformsType.SUPERVISED])]

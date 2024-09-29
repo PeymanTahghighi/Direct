@@ -84,8 +84,24 @@ def build_transforms_from_environment(env, dataset_config: DictConfig) -> Callab
         forward_operator=env.engine.forward_operator,
         backward_operator=env.engine.backward_operator,
         mask_func=mask_func,
+        to_tensor = True,
+        estimate_sensitivity_maps = False
     )
-    return mri_transforms_func(**dict_flatten(dict(remove_keys(dataset_config.transforms, "masking"))))  # type: ignore
+
+    mri_data_cache_transforms_func = functools.partial(
+        build_mri_transforms,
+        forward_operator=env.engine.forward_operator,
+        backward_operator=env.engine.backward_operator,
+        mask_func=None,
+        to_tensor = False,
+        delete_acs_mask = False,
+        delete_kspace = False,
+        apply_mask = False,
+        compute_scaling_factor = False,
+        estimate_sensitivity_maps = False
+    )
+
+    return mri_transforms_func(**dict_flatten(dict(remove_keys(dataset_config.transforms, "masking")))), mri_data_cache_transforms_func(**dict_flatten(dict(remove_keys(remove_keys(dataset_config.transforms, "sensitivity_map_estimation"), "masking"))))  # type: ignore
 
 
 def build_training_datasets_from_environment(
@@ -111,8 +127,8 @@ def build_training_datasets_from_environment(
                 "Masking function set to None for %s.",
                 dataset_config.text_description,  # type: ignore
             )
-        transforms = build_transforms_from_environment(env, dataset_config)
-        dataset_args = {"transforms": transforms, "dataset_config": dataset_config}
+        train_transforms, data_cache_tranform = build_transforms_from_environment(env, dataset_config)
+        dataset_args = {"transforms": train_transforms, "dataset_config": dataset_config}
         if initial_images is not None:
             dataset_args.update({"initial_images": initial_images})
         if initial_kspaces is not None:
@@ -129,9 +145,10 @@ def build_training_datasets_from_environment(
         if pass_dictionaries is not None:
             dataset_args.update({"pass_dictionaries": pass_dictionaries})
         dataset_args.update({'data_type': data_type});
+        dataset_args.update({'data_cache_tranform': data_cache_tranform});
         dataset = build_dataset_from_input(**dataset_args)
 
-        logger.debug("Transforms %s / %s :\n%s", idx + 1, len(datasets_config), transforms)
+        logger.debug("Transforms %s / %s :\n%s", idx + 1, len(datasets_config), train_transforms)
         datasets.append(dataset)
         logger.info(
             "Data size for %s (%s/%s): %s.",

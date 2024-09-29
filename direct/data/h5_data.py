@@ -14,6 +14,7 @@ from direct.utils import cast_as_path
 from direct.utils.dataset import get_filenames_for_datasets
 import os
 import pickle
+from typing import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class H5SliceData(Dataset):
         pass_dictionaries: Optional[Dict[str, Dict]] = None,
         pass_h5s: Optional[Dict[str, List]] = None,
         slice_data: Optional[slice] = None,
+        data_cache_tranform: Optional[Callable] = None,
         data_type = 'train'
     ) -> None:
         """Initialize the dataset.
@@ -143,13 +145,13 @@ class H5SliceData(Dataset):
         self.ndim = 2 if self.kspace_context == 0 else 3
 
         self.parse_filenames_data(
-            dataset_description, filenames, extra_h5s=pass_h5s, filter_slice=slice_data, data_type = data_type
+            dataset_description, filenames, data_cache_tranform, extra_h5s=pass_h5s, filter_slice=slice_data, data_type = data_type
         )  # Collect information on the image masks_dict.
 
         if self.text_description:
             self.logger.info("Dataset description: %s.", self.text_description)
 
-    def parse_filenames_data(self, dataset_description, filepaths, extra_h5s=None, filter_slice=None, data_type = 'train'):
+    def parse_filenames_data(self, dataset_description, filepaths, transforms, extra_h5s=None, filter_slice=None, data_type = 'train'):
         current_slice_number = 0  # This is required to keep track of where a volume is in the dataset
 
         #check if we have already cached this dataset
@@ -172,25 +174,29 @@ class H5SliceData(Dataset):
                 if len(filepaths) < 5 or idx % (len(filepaths) // 5) == 0 or len(filepaths) == (idx + 1):
                     self.logger.info(f"Parsing: {(idx + 1) / len(filepaths) * 100:.2f}%.")
                 try:
-                    kspace_shape = h5py.File(filepath, "r")["kspace"].shape  # pylint: disable = E1101
-                    num_slices = kspace_shape[0]
-                    for slice_no in range(num_slices):
-                        kspace, extra_data = self.get_slice_data(filepath, 0, pass_attrs=self.pass_attrs, extra_keys=self.extra_keys);
+                    with h5py.File(filepath, "r") as data:
+                        kspace_shape = data["kspace"].shape  # pylint: disable = E1101
+                        num_slices = kspace_shape[0]
 
-                        sample = {"kspace": kspace, "filename": str(filepath), "slice_no": slice_no}
+                        for slice_no in range(num_slices):
+                            kspace, extra_data = self.get_slice_data(data, filepath, slice_no, pass_attrs=self.pass_attrs, extra_keys=self.extra_keys);
 
-                        # If the sensitivity maps exist, load these
-                        if self.sensitivity_maps:
-                            sensitivity_map, _ = self.get_slice_data(self.sensitivity_maps / filepath.name, slice_no)
-                            sample["sensitivity_map"] = sensitivity_map
+                            sample = {"kspace": kspace, "filename": str(filepath), "slice_no": slice_no}
 
-                        sample.update(extra_data)
+                            # If the sensitivity maps exist, load these
+                            if self.sensitivity_maps:
+                                sensitivity_map, _ = self.get_slice_data(self.sensitivity_maps / filepath.name, slice_no)
+                                sample["sensitivity_map"] = sensitivity_map
 
-                        filename = os.path.basename(filepath);
-                        filename = filename[:filename.rfind('.')];
-                        with open(os.path.join(base_root,f'cache_{data_type}', f'{filename}_{slice_no}_cache.ch'), 'wb') as f:
-                            pickle.dump(sample, f);
-                        self.data.append(os.path.join(base_root, f'cache_{data_type}', f'{filename}_{slice_no}_cache.ch'));
+                            sample.update(extra_data)
+
+                           # sample = transforms(sample);
+
+                            filename = os.path.basename(filepath);
+                            filename = filename[:filename.rfind('.')];
+                            with open(os.path.join(base_root,f'cache_{data_type}', f'{filename}_{slice_no}_cache.ch'), 'wb') as f:
+                                pickle.dump(sample, f);
+                            self.data.append(os.path.join(base_root, f'cache_{data_type}', f'{filename}_{slice_no}_cache.ch'));
 
                     #self.verify_extra_h5_integrity(filepath, kspace_shape, extra_h5s=extra_h5s)  # pylint: disable = E1101
 
@@ -292,15 +298,9 @@ class H5SliceData(Dataset):
 
         return sample
 
-    def get_slice_data(self, filename, slice_no, key="kspace", pass_attrs=False, extra_keys=None):
+    def get_slice_data(self, data, filename, slice_no, key="kspace", pass_attrs=False, extra_keys=None):
         extra_data = {}
-        if not filename.exists():
-            raise OSError(f"{filename} does not exist.")
-
-        try:
-            data = h5py.File(filename, "r")
-        except Exception as e:
-            raise Exception(f"Reading filename {filename} caused exception: {e}")
+        
 
         if self.kspace_context == 0:
             curr_data = data[key][slice_no]
@@ -338,7 +338,6 @@ class H5SliceData(Dataset):
                     raise ValueError("attrs need to be passed by setting `pass_attrs = True`.")
                 if extra_key in data.keys():
                     extra_data[extra_key] = data[extra_key][()]
-        data.close()
         return curr_data, extra_data
 
     def get_num_slices(self, filename):
