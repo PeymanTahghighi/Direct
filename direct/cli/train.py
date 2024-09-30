@@ -44,7 +44,6 @@ def register_parser(parser: argparse._SubParsersAction):
         dest="cfg_file",
         help="Config file for training. Can be either a local file or a remote URL.",
         required=True,
-        default = 'D:\\Internship-Foqus\\third-party\\direct\\projects\\cvpr2022_recurrentvarnet\\fastmri\\AXT1_brain\\configs\\base_varnet.yaml',
         type=file_or_url,
     )
     
@@ -59,7 +58,7 @@ def register_parser(parser: argparse._SubParsersAction):
         "If a URL is given the checkpoint will first be downloaded to the environmental variable "
         "`DIRECT_MODEL_DOWNLOAD_DIR` (default=current directory). Be aware that if `model_checkpoint` is "
         "set in the configuration that this flag will overwrite the configuration value, also in the dumped config.",
-        required = False
+        required = True
     )
     train_parser.add_argument("--resume", help="Resume training if possible.", action="store_true")
     train_parser.add_argument(
