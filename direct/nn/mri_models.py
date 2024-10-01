@@ -1098,7 +1098,8 @@ def _process_output(
         data = data.unsqueeze(1)  # Added channel dimension.
 
     if resolution is not None:
-        data = T.center_crop(data, resolution).contiguous()
+        if not(resolution[0] == 0 and resolution[1] == 0):
+            data = T.center_crop(data, resolution).contiguous()
 
     return data
 

@@ -58,7 +58,7 @@ def register_parser(parser: argparse._SubParsersAction):
         "If a URL is given the checkpoint will first be downloaded to the environmental variable "
         "`DIRECT_MODEL_DOWNLOAD_DIR` (default=current directory). Be aware that if `model_checkpoint` is "
         "set in the configuration that this flag will overwrite the configuration value, also in the dumped config.",
-        required = True
+        required = False
     )
     train_parser.add_argument("--resume", help="Resume training if possible.", action="store_true")
     train_parser.add_argument(
