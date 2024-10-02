@@ -355,7 +355,7 @@ class FastMRIDataset(H5SliceData):
             extra_keys=tuple(extra_keys),
             pass_attrs=pass_max,
             text_description=kwargs.get("text_description", None),
-            dataset_description=kwargs.get("sheet_name", None),
+            dataset_description=kwargs.get("text_description", None),
             pass_h5s=pass_h5s,
             pass_dictionaries=kwargs.get("pass_dictionaries", None),
             data_type=data_type,
