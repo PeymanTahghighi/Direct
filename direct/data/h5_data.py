@@ -171,6 +171,10 @@ class H5SliceData(Dataset):
 
             self.logger.info(f'{dataset_description} does not exists in cache, loading from scratch...')
             for idx, filepath in enumerate(filepaths):
+
+                filename = os.path.basename(filepath);
+                filename = filename[:filename.rfind('.')];
+
                 if len(filepaths) < 5 or idx % (len(filepaths) // 5) == 0 or len(filepaths) == (idx + 1):
                     self.logger.info(f"Parsing: {(idx + 1) / len(filepaths) * 100:.2f}%.")
                 try:
@@ -179,6 +183,11 @@ class H5SliceData(Dataset):
                         num_slices = kspace_shape[0]
 
                         for slice_no in range(num_slices):
+                            if os.path.exists(os.path.join(base_root,f'cache_{data_type}', f'{filename}_{slice_no}_cache.ch')) is True:
+                                self.data.append(os.path.join(base_root, f'cache_{data_type}', f'{filename}_{slice_no}_cache.ch'));
+                                continue;
+
+                            
                             kspace, extra_data = self.get_slice_data(data, filepath, slice_no, pass_attrs=self.pass_attrs, extra_keys=self.extra_keys);
 
                             sample = {"kspace": kspace, "filename": str(filepath), "slice_no": slice_no}
@@ -190,10 +199,6 @@ class H5SliceData(Dataset):
 
                             sample.update(extra_data)
 
-                           # sample = transforms(sample);
-
-                            filename = os.path.basename(filepath);
-                            filename = filename[:filename.rfind('.')];
                             with open(os.path.join(base_root,f'cache_{data_type}', f'{filename}_{slice_no}_cache.ch'), 'wb') as f:
                                 pickle.dump(sample, f);
                             self.data.append(os.path.join(base_root, f'cache_{data_type}', f'{filename}_{slice_no}_cache.ch'));

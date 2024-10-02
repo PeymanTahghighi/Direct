@@ -51,24 +51,11 @@ def get_filenames_for_datasets(dataset_name: str,base_path: pathlib.Path, file_n
         ret.extend(os.path.join(base_path, 'ax', d[:d.rfind('.')] + '_ax' + '.h5') for d in file_names);
         ret.extend(os.path.join(base_path, 'cor', d[:d.rfind('.')] + '_cor' + '.h5') for d in file_names);
         ret.extend(os.path.join(base_path, 'sag',  d[:d.rfind('.')] + '_sag' + '.h5') for d in file_names);
-        print(ret);
-    
-    elif dataset_name == 'stanford3d':
-        ret.extend(os.path.join(base_path, 'Ax', d) for d in file_names);
-        ret.extend(os.path.join(base_path, 'Sag', d) for d in file_names);
-        ret.extend(os.path.join(base_path, 'Cor', d) for d in file_names);
-        print(ret);
-    
-    elif dataset_name == 'CC359':
-        ret.extend(os.path.join(base_path, 'Ax', d) for d in file_names);
-        ret.extend(os.path.join(base_path, 'Sag', d) for d in file_names);
-        ret.extend(os.path.join(base_path, 'Cor', d) for d in file_names);
-        print(ret);
     
     elif dataset_name == 'SKM-TEA':
         ret.extend(os.path.join(base_path, "E1_" + d) for d in file_names);
         ret.extend(os.path.join(base_path, "E2_" + d) for d in file_names);
-        print(ret);
+
     else:
         ret = [os.path.join(base_path, f) for f in file_names];
 
