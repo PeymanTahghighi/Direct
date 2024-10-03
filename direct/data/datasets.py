@@ -23,7 +23,7 @@ from direct.data.h5_data import H5SliceData
 from direct.data.sens import simulate_sensitivity_maps
 from direct.types import PathOrString
 from direct.utils import remove_keys, str_to_class
-from direct.utils.dataset import get_filenames_for_datasets
+from direct.utils.dataset import get_filenames_for_datasets, parse_fastmri_header, explicit_zero_padding
 
 logger = logging.getLogger(__name__)
 
@@ -49,43 +49,6 @@ def temp_seed(rng, seed) -> None:
         yield
     finally:
         rng.set_state(state)
-
-
-def _et_query(
-    root: etree.Element,
-    qlist: Sequence[str],
-    namespace: str = "http://www.ismrm.org/ISMRMRD",
-) -> str:
-    """
-    ElementTree query function.
-    This can be used to query an xml document via ElementTree. It uses qlist
-    for nested queries.
-    Args:
-        root: Root of the xml to search through.
-        qlist: A list of strings for nested searches, e.g. ["Encoding",
-            "matrixSize"]
-        namespace: Optional; xml namespace to prepend query.
-    Returns:
-        The retrieved data as a string.
-
-    From:
-    https://github.com/facebookresearch/fastMRI/blob/13560d2f198cc72f06e01675e9ecee509ce5639a/fastmri/data/mri_data.py#L23
-
-    """
-    s = "."
-    prefix = "ismrmrd_namespace"
-
-    ns = {prefix: namespace}
-
-    for el in qlist:
-        s = s + f"//{prefix}:{el}"
-
-    value = root.find(s, ns)
-    if value is None:
-        raise RuntimeError("Element not found")
-
-    return str(value.text)
-
 
 class FakeMRIBlobsDataset(Dataset):
     """A PyTorch Dataset class which outputs random fake k-space images which reconstruct into Gaussian blobs.
@@ -238,49 +201,6 @@ class FakeMRIBlobsDataset(Dataset):
         return sample
 
 
-def _parse_fastmri_header(data: dict, key: str) -> dict:
-    # Borrowed from: https://github.com/facebookresearch/\
-    # fastMRI/blob/13560d2f198cc72f06e01675e9ecee509ce5639a/fastmri/data/mri_data.py#L23
-    if key in data.keys():
-        xml_header = data[key];
-        et_root = etree.fromstring(xml_header)  # nosec
-
-        encodings = ["encoding", "encodedSpace", "matrixSize"]
-        encoding_size = (
-            int(_et_query(et_root, encodings + ["x"])),
-            int(_et_query(et_root, encodings + ["y"])),
-            int(_et_query(et_root, encodings + ["z"])),
-        )
-        reconstructions = ["encoding", "reconSpace", "matrixSize"]
-        reconstruction_size = (
-            int(_et_query(et_root, reconstructions + ["x"])),
-            int(_et_query(et_root, reconstructions + ["y"])),
-            int(_et_query(et_root, reconstructions + ["z"])),
-        )
-
-        limits = ["encoding", "encodingLimits", "kspace_encoding_step_1"]
-        encoding_limits_center = int(_et_query(et_root, limits + ["center"]))
-        encoding_limits_max = int(_et_query(et_root, limits + ["maximum"])) + 1
-
-        padding_left = encoding_size[1] // 2 - encoding_limits_center
-        padding_right = padding_left + encoding_limits_max
-
-        
-    else:
-        #sample lack ismrmrd_header so we create the metadata with zero data
-        padding_left = 0
-        padding_right = 0
-        encoding_size = (0, 0, 0)
-        reconstruction_size = (0, 0, 0)
-
-    metadata = {
-            "padding_left": padding_left,
-            "padding_right": padding_right,
-            "encoding_size": encoding_size,
-            "reconstruction_size": reconstruction_size,
-        }
-    return metadata
-
 
 class FastMRIDataset(H5SliceData):
     """FastMRI challenge dataset.
@@ -377,15 +297,18 @@ class FastMRIDataset(H5SliceData):
 
         self.noise_data = noise_data
         self.transform = transform
+        self.data_type = data_type;
 
     def __getitem__(self, idx: int) -> dict[str, Any]:
         sample = super().__getitem__(idx)
+        if self.data_type == 'val':
+            return sample;
 
         if self.pass_attrs:
             #sample["scaling_factor"] = sample["attrs"]["max"]
             del sample["attrs"]
         
-        sample.update(_parse_fastmri_header(sample, "ismrmrd_header"))
+        sample.update(parse_fastmri_header(sample, "ismrmrd_header"))
         if "ismrmrd_header" in sample.keys():
             del sample["ismrmrd_header"]
         # Some images have strange behavior, e.g. FLAIR 203.
@@ -409,7 +332,7 @@ class FastMRIDataset(H5SliceData):
             sample["acs_mask"] = self.__broadcast_mask(kspace_shape, self.__get_acs_from_fastmri_mask(sampling_mask))
 
         # Explicitly zero-out the outer parts of kspace which are padded
-        sample["kspace"] = self.explicit_zero_padding(
+        sample["kspace"] = explicit_zero_padding(
             sample["kspace"], sample["padding_left"], sample["padding_right"]
         )
 
@@ -420,15 +343,6 @@ class FastMRIDataset(H5SliceData):
             sample["loglikelihood_scaling"] = self.noise_data[sample["slice_no"]]
 
         return sample
-
-    @staticmethod
-    def explicit_zero_padding(kspace: np.ndarray, padding_left: int, padding_right: int) -> np.ndarray:
-        if padding_left > 0:
-            kspace[..., 0:padding_left] = 0 + 0 * 1j
-        if padding_right > 0:
-            kspace[..., padding_right:] = 0 + 0 * 1j
-
-        return kspace
 
     @staticmethod
     def __get_acs_from_fastmri_mask(mask: np.ndarray) -> np.ndarray:

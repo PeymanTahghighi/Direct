@@ -20,13 +20,6 @@ class LoggingConfig(BaseConfig):
     tensorboard: TensorboardConfig = field(default_factory =TensorboardConfig)
 
 @dataclass
-class BenchmarkConfig(BaseConfig):
-    active: Optional[bool] = False
-    percentages: Optional[List[float]] = None
-    repeats: Optional[int] = 5
-
-
-@dataclass
 class FunctionConfig(BaseConfig):
     function: str = MISSING
     multiplier: float = 1.0
@@ -131,4 +124,4 @@ class DefaultConfig(BaseConfig):
     inference: Optional[InferenceConfig] = None
 
     logging: LoggingConfig = field(default_factory =LoggingConfig)
-    benchmark: BenchmarkConfig = field(default_factory =BenchmarkConfig)
+

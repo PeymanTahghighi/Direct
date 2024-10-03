@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 
 from direct.types import PathOrString
 from direct.utils import cast_as_path
-from direct.utils.dataset import get_filenames_for_datasets
+from direct.utils.dataset import get_filenames_for_datasets, explicit_zero_padding, parse_fastmri_header
 import os
 import pickle
 from typing import Callable
@@ -155,7 +155,7 @@ class H5SliceData(Dataset):
         current_slice_number = 0  # This is required to keep track of where a volume is in the dataset
 
         #check if we have already cached this dataset
-        if os.path.exists(f'{data_type}_cache.ch') is not False and data_type != 'bench':
+        if os.path.exists(f'{data_type}_cache.ch') is not False:
             with open(f'{data_type}_cache.ch', 'rb') as f:
                 dataset_cache = pickle.load(f);
         else:
@@ -165,11 +165,11 @@ class H5SliceData(Dataset):
             #check if we have cache folder for this dataset, take the root of the first file,
             #cache will be saved beside data root in a folder called cache
             base_root = os.path.dirname(filepaths[0]);
-            if os.path.exists(os.path.join(base_root, f'cache_{data_type}')) is False and data_type != 'bench':
+            if os.path.exists(os.path.join(base_root, f'cache_{data_type}')) is False:
                 os.makedirs(os.path.join(base_root, f'cache_{data_type}'));
 
-            if data_type !='bench':
-                self.logger.info(f'{dataset_description} does not exists in cache, loading from scratch...')
+            
+            self.logger.info(f'{dataset_description} does not exists in cache, loading from scratch...')
 
             for idx, filepath in enumerate(filepaths):
 
@@ -184,9 +184,9 @@ class H5SliceData(Dataset):
                         num_slices = kspace_shape[0]
 
                         for slice_no in range(num_slices):
-                            if os.path.exists(os.path.join(base_root,f"cache_{'val' if data_type == 'bench' else data_type}", f'{filename}_{slice_no}_cache.ch')) is True:
-                                self.data.append(os.path.join(base_root, f"cache_{'val' if data_type == 'bench' else data_type}", f'{filename}_{slice_no}_cache.ch'));
-                                continue;
+                            # if os.path.exists(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch')) is True:
+                            #     self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'));
+                            #     continue;
 
                             
                             kspace, extra_data = self.get_slice_data(data, filepath, slice_no, pass_attrs=self.pass_attrs, extra_keys=self.extra_keys);
@@ -200,9 +200,24 @@ class H5SliceData(Dataset):
 
                             sample.update(extra_data)
 
-                            with open(os.path.join(base_root,f"cache_{'val' if data_type == 'bench' else data_type}", f'{filename}_{slice_no}_cache.ch'), 'wb') as f:
+                            if transforms is not None:
+                                sample.update(parse_fastmri_header(sample, "ismrmrd_header"))
+                                if "ismrmrd_header" in sample.keys():
+                                    del sample["ismrmrd_header"]
+                                # Some images have strange behavior, e.g. FLAIR 203.
+                                image_shape = sample["kspace"].shape
+                                if image_shape[-1] < sample["reconstruction_size"][-2]:  # reconstruction size is (x, y, z)
+                                    sample["reconstruction_size"] = (image_shape[-1], image_shape[-1], 1)
+                                
+                                sample["kspace"] = explicit_zero_padding(
+                                    sample["kspace"], sample["padding_left"], sample["padding_right"]
+                                    )
+                                
+                                sample = transforms(sample);
+
+                            with open(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'), 'wb') as f:
                                 pickle.dump(sample, f);
-                            self.data.append(os.path.join(base_root, f"cache_{'val' if data_type == 'bench' else data_type}", f'{filename}_{slice_no}_cache.ch'));
+                            self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'));
 
                     #self.verify_extra_h5_integrity(filepath, kspace_shape, extra_h5s=extra_h5s)  # pylint: disable = E1101
 
@@ -226,12 +241,12 @@ class H5SliceData(Dataset):
 
                 current_slice_number += num_slices
             
-            if data_type != 'bench':
-                #done loading files, cache it
-                dataset_cache[dataset_description] = [self.data, self.volume_indices]
             
-                with open(f'{data_type}_cache.ch', 'wb') as f:
-                    pickle.dump(dataset_cache, f);
+            #done loading files, cache it
+            dataset_cache[dataset_description] = [self.data, self.volume_indices]
+        
+            with open(f'{data_type}_cache.ch', 'wb') as f:
+                pickle.dump(dataset_cache, f);
         
         else:
             self.logger.info(f'{dataset_description} found in cache, loading from cache...')
