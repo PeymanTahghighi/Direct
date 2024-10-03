@@ -13,7 +13,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.utils import collect_env
 
 import direct.utils.logging
-from direct.config.defaults import DefaultConfig, InferenceConfig, PhysicsConfig, TrainingConfig, ValidationConfig
+from direct.config.defaults import DefaultConfig, InferenceConfig, PhysicsConfig, TrainingConfig, ValidationConfig, BenchmarkConfig
 from direct.utils import communication, count_parameters, str_to_class
 from direct.utils.io import check_is_valid_url, read_text_from_url
 from direct.utils.logging import setup
@@ -367,6 +367,7 @@ def setup_common_environment(
     cfg.training = TrainingConfig
     cfg.validation = ValidationConfig
     cfg.inference = InferenceConfig
+    cfg.benchmark = BenchmarkConfig
 
     cfg_from_file_new = cfg_from_external_source.copy()
     for key in cfg_from_external_source:
@@ -599,7 +600,7 @@ class Args(argparse.ArgumentParser):
         )
         self.add_argument("--seed", default=42, type=int, help="Seed for random number generators.")
         self.add_argument("--num-workers", type=int, default=1, help="Number of workers.")
-        self.add_argument("--mixed-precision", help="Use mixed precision.", action="store_true")
+        self.add_argument("--mixed-precision", default=True, help="Use mixed precision.", action="store_true")
         self.add_argument("--debug", help="Set debug mode true.", action="store_true")
 
         self.add_argument("--num-gpus", type=int, default=1, help="# GPUs per machine.")

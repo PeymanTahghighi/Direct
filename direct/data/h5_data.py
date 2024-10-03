@@ -155,7 +155,7 @@ class H5SliceData(Dataset):
         current_slice_number = 0  # This is required to keep track of where a volume is in the dataset
 
         #check if we have already cached this dataset
-        if os.path.exists(f'{data_type}_cache.ch') is not False:
+        if os.path.exists(f'{data_type}_cache.ch') is not False and data_type != 'bench':
             with open(f'{data_type}_cache.ch', 'rb') as f:
                 dataset_cache = pickle.load(f);
         else:
@@ -165,11 +165,12 @@ class H5SliceData(Dataset):
             #check if we have cache folder for this dataset, take the root of the first file,
             #cache will be saved beside data root in a folder called cache
             base_root = os.path.dirname(filepaths[0]);
-            if os.path.exists(os.path.join(base_root, f'cache_{data_type}')) is False:
+            if os.path.exists(os.path.join(base_root, f'cache_{data_type}')) is False and data_type != 'bench':
                 os.makedirs(os.path.join(base_root, f'cache_{data_type}'));
 
+            if data_type !='bench':
+                self.logger.info(f'{dataset_description} does not exists in cache, loading from scratch...')
 
-            self.logger.info(f'{dataset_description} does not exists in cache, loading from scratch...')
             for idx, filepath in enumerate(filepaths):
 
                 filename = os.path.basename(filepath);
@@ -183,8 +184,8 @@ class H5SliceData(Dataset):
                         num_slices = kspace_shape[0]
 
                         for slice_no in range(num_slices):
-                            if os.path.exists(os.path.join(base_root,f'cache_{data_type}', f'{filename}_{slice_no}_cache.ch')) is True:
-                                self.data.append(os.path.join(base_root, f'cache_{data_type}', f'{filename}_{slice_no}_cache.ch'));
+                            if os.path.exists(os.path.join(base_root,f"cache_{'val' if data_type == 'bench' else data_type}", f'{filename}_{slice_no}_cache.ch')) is True:
+                                self.data.append(os.path.join(base_root, f"cache_{'val' if data_type == 'bench' else data_type}", f'{filename}_{slice_no}_cache.ch'));
                                 continue;
 
                             
@@ -199,9 +200,9 @@ class H5SliceData(Dataset):
 
                             sample.update(extra_data)
 
-                            with open(os.path.join(base_root,f'cache_{data_type}', f'{filename}_{slice_no}_cache.ch'), 'wb') as f:
+                            with open(os.path.join(base_root,f"cache_{'val' if data_type == 'bench' else data_type}", f'{filename}_{slice_no}_cache.ch'), 'wb') as f:
                                 pickle.dump(sample, f);
-                            self.data.append(os.path.join(base_root, f'cache_{data_type}', f'{filename}_{slice_no}_cache.ch'));
+                            self.data.append(os.path.join(base_root, f"cache_{'val' if data_type == 'bench' else data_type}", f'{filename}_{slice_no}_cache.ch'));
 
                     #self.verify_extra_h5_integrity(filepath, kspace_shape, extra_h5s=extra_h5s)  # pylint: disable = E1101
 
@@ -225,11 +226,12 @@ class H5SliceData(Dataset):
 
                 current_slice_number += num_slices
             
-            #done loading files, cache it
-            dataset_cache[dataset_description] = [self.data, self.volume_indices]
-        
-            with open(f'{data_type}_cache.ch', 'wb') as f:
-                pickle.dump(dataset_cache, f);
+            if data_type != 'bench':
+                #done loading files, cache it
+                dataset_cache[dataset_description] = [self.data, self.volume_indices]
+            
+                with open(f'{data_type}_cache.ch', 'wb') as f:
+                    pickle.dump(dataset_cache, f);
         
         else:
             self.logger.info(f'{dataset_description} found in cache, loading from cache...')

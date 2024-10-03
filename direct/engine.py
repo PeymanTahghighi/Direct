@@ -37,6 +37,13 @@ from direct.types import PathOrString
 from direct.utils import communication, normalize_image, prefix_dict_keys, reduce_list_of_dicts, str_to_class
 from direct.utils.events import CommonMetricPrinter, EventStorage, JSONWriter, TensorboardWriter, get_event_storage
 from direct.utils.io import write_json
+import matplotlib.pyplot as plt
+import os
+from pathlib import Path
+from copy import copy
+
+from sklearn.utils import shuffle
+import pickle
 
 logging.captureWarnings(True)
 
@@ -377,6 +384,37 @@ class Engine(ABC, DataDimensionality):
 
             storage.step()
 
+    def benchmark_loop(
+        self,
+        training_datasets: List,  # TODO(jt): Improve typing
+        benchmark_datasets: Optional[List] = None,
+        experiment_directory: Optional[pathlib.Path] = None,
+        num_workers: int = 6,
+        percentages = None,
+        repeats = None
+    ):
+        self.logger.info(f"Local rank: {communication.get_local_rank()}.")
+        self.models_training_mode()
+
+        loss_fns = self.build_loss()
+        metric_fns = self.build_metrics(self.cfg.training.metrics)  # type: ignore
+        regularizer_fns = self.build_regularizers(self.cfg.training.regularizers)  # type: ignore
+        storage = get_event_storage()
+
+        self.ndim = training_datasets[0].ndim
+        self.logger.info("Data dimensionality: %s.", self.ndim)
+
+
+        # Convenient shorthand
+        benchmark_func = functools.partial(
+            self.benchmark_step,
+            benchmark_datasets,
+            None,
+            num_workers=num_workers,
+        )
+
+        benchmark_func(percentages = percentages, repeats = repeats)
+
     def validate_model_at_interval(self, func, iter_idx, total_iter):
         if iter_idx >= 5:  # No validation or anything needed
             if iter_idx % self.cfg.training.validation_steps == 0 or (iter_idx + 1) == total_iter:  # type: ignore
@@ -481,6 +519,104 @@ class Engine(ABC, DataDimensionality):
                 storage.add_image(f"{key_prefix}target", visualize_target)
 
             self.logger.info("Done evaluation of %s at iteration %s.", str(curr_dataset_name), str(iter_idx))
+        self.model.train()
+
+    def benchmark_step(
+        self,
+        benchmark_datasets,
+        loss_fns,
+        num_workers: int = 6,
+        percentages = None,
+        repeats = None
+    ):
+        if not benchmark_datasets:
+            return
+
+        storage = get_event_storage()
+
+        scores_per_percentage = dict();
+        for percentage in percentages:
+            scores_per_repeat = dict();
+            for repeat in range(repeats):
+                scores = dict();
+                for curr_validation_dataset in benchmark_datasets:
+                    curr_dataset_name = curr_validation_dataset.text_description
+                    self.logger.info("Evaluating: %s...", curr_dataset_name)
+                    self.logger.info("Building dataloader for dataset: %s.", curr_dataset_name)
+
+                    data = curr_validation_dataset.data
+                    all_filenames = list(curr_validation_dataset.volume_indices.keys())
+
+                    filenames_filter = shuffle(all_filenames, random_state=42);
+                    end_point = int(len(filenames_filter) * percentage)+1
+                    filenames_filter = filenames_filter[:end_point]
+
+                    filenames_filter_names = [Path(f).stem for f in filenames_filter]
+
+                    new_data = [];
+                    new_file_names = dict();
+                    current_slice_number = 0;
+                    for ffn, ff in zip(filenames_filter_names, filenames_filter):
+                        for d in data:
+                            if ffn in d:
+                                new_data.append(d);
+                        num_slices = curr_validation_dataset.volume_indices[ff].stop - curr_validation_dataset.volume_indices[ff].start
+                        new_file_names[ff] = range(current_slice_number, current_slice_number + num_slices)
+
+                    dataset_clone = copy(curr_validation_dataset);
+                    dataset_clone.data = new_data;
+                    dataset_clone.volume_indices = new_file_names;
+
+                    curr_batch_sampler = self.build_batch_sampler(
+                        dataset_clone,
+                        batch_size=self.cfg.validation.batch_size,  # type: ignore
+                        sampler_type="sequential",
+                        limit_number_of_volumes=None,
+                    )
+                    curr_data_loader = self.build_loader(
+                        dataset_clone,
+                        batch_sampler=curr_batch_sampler,
+                        num_workers=num_workers,
+                    )
+
+                    (
+                        curr_loss_dict,
+                        curr_metrics_per_case,
+                        visualize_slices,
+                        visualize_target,
+                    ) = self.evaluate(
+                        curr_data_loader,
+                        loss_fns,
+                    )
+
+                    avg_score_ssim = 0;
+                    avg_score_psnr = 0;
+                    for k in curr_metrics_per_case.keys():
+                        avg_score_ssim+=curr_metrics_per_case[k]['fastmri_ssim_metric'].item();
+                        avg_score_psnr+=curr_metrics_per_case[k]['fastmri_psnr_metric'].item();
+                    avg_score_ssim /= len(curr_metrics_per_case.keys())
+                    avg_score_psnr /= len(curr_metrics_per_case.keys())
+
+                    scores[curr_dataset_name] = [avg_score_ssim, avg_score_psnr]
+                avg_total_psnr, avg_total_ssim = 0,0
+                for k in scores.keys():
+                    avg_total_psnr+=scores[k][1];
+                    avg_total_ssim+=scores[k][0];
+                scores['average_total'] = [avg_total_ssim/len(scores.keys()), avg_total_psnr/len(scores.keys())]
+                scores_per_repeat[repeat] = scores;
+            scores_per_percentage[percentage] = scores_per_repeat;
+        
+        pickle.dump(scores_per_percentage, open('scores.dmp', 'wb'))
+        ax,fig = plt.subplots(1,1);
+        #plot total plot
+        for p in scores_per_percentage.keys():
+            score_repeat = scores_per_percentage[p];
+            scores = [];
+            for sr in score_repeat.keys():
+                scores.append([score_repeat[sr]['average_total'][0]]);
+            plt.scatter(scores, [p]*len(scores));
+        plt.show();
+
         self.model.train()
 
     def process_slices_for_visualization(self, visualize_slices, visualize_target):
@@ -658,6 +794,33 @@ class Engine(ABC, DataDimensionality):
 
         self.logger.info("Training completed.")
 
+    def benchmark(
+        self,
+        training_datasets: List[Dataset],
+        experiment_directory: pathlib.Path,
+        benchmark_datasets: Optional[Dataset] = None,
+        start_with_validation: bool = False,
+        num_workers: int = 6,
+        percentages = None,
+        repeats = None
+    ) -> None:
+        self.logger.info("Starting benchmark.")
+        # Can consider not to make this a member of self, but that requires that optimizer is passed to
+        # training_loop()
+        
+        self.models_to_device()
+
+        with EventStorage(0):
+            self.benchmark_loop(
+                training_datasets,
+                benchmark_datasets,
+                experiment_directory=experiment_directory,
+                num_workers=num_workers,
+                percentages = percentages,
+                repeats = repeats
+            )
+
+        self.logger.info("Training completed.")
     @abstractmethod
     def reconstruct_volumes(self, *args, **kwargs):  # noqa
         pass

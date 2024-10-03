@@ -25,7 +25,7 @@ from direct.types import PathOrString
 from direct.utils import dict_flatten, remove_keys, set_all_seeds, str_to_class
 from direct.utils.dataset import get_filenames_for_datasets
 from direct.utils.io import check_is_valid_url, read_json
-
+from sklearn.utils import shuffle
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -160,6 +160,73 @@ def build_training_datasets_from_environment(
 
     return datasets
 
+def build_benchmark_datasets_from_environment(
+    env,
+    datasets_config: List[DictConfig],
+    lists_root: Optional[PathOrString] = None,
+    data_sheet: Optional[PathOrString] = None,
+    initial_images: Optional[Union[List[pathlib.Path], None]] = None,
+    initial_kspaces: Optional[Union[List[pathlib.Path], None]] = None,
+    pass_text_description: bool = True,
+    pass_dictionaries: Optional[Dict[str, Dict]] = None,
+):
+    percentages = env.cfg.benchmark.percentages;
+    repeats = env.cfg.benchmark.repeats;
+    
+    dataset_per_percentages = dict();
+    for p in percentages:
+        dataset_per_repeat = dict();
+        for r in range(repeats):
+            datasets = []
+            for idx, dataset_config in enumerate(datasets_config):
+                if pass_text_description:
+                    if not "text_description" in dataset_config:
+                        dataset_config.text_description = f"ds{idx}" if len(datasets_config) > 1 else None
+                else:
+                    dataset_config.text_description = None
+                if dataset_config.transforms.masking is None:  # type: ignore
+                    logger.info(
+                        "Masking function set to None for %s.",
+                        dataset_config.text_description,  # type: ignore
+                    )
+                train_transforms, data_cache_tranform = build_transforms_from_environment(env, dataset_config)
+                dataset_args = {"transforms": train_transforms, "dataset_config": dataset_config}
+                if initial_images is not None:
+                    dataset_args.update({"initial_images": initial_images})
+                if initial_kspaces is not None:
+                    dataset_args.update({"initial_kspaces": initial_kspaces})
+                if data_sheet is not None:
+                    xls = pd.ExcelFile(data_sheet);
+                    sheet_name = dataset_args['dataset_config']['sheet_name']
+                    df = pd.read_excel(xls, sheet_name);
+                    names = [df.loc[l, 'Name'] for l in np.where(df['New subsets'] == 'val')[0]]
+                    data_root = dataset_config['base_path']
+                    dataset_args.update({"data_root": data_root})
+                    filenames_filter = get_filenames_for_datasets(dataset_config['sheet_name'], data_root, names)
+                    #filenames_filter = shuffle(filenames_filter, random_state=42);
+                    end_point = int(len(filenames_filter) * p)+1
+                    filenames_filter = filenames_filter[:end_point]
+                    dataset_args.update({"filenames_filter": filenames_filter})
+                if pass_dictionaries is not None:
+                    dataset_args.update({"pass_dictionaries": pass_dictionaries})
+                dataset_args.update({'data_type': 'bench'});
+                dataset_args.update({'data_cache_tranform': data_cache_tranform});
+                dataset = build_dataset_from_input(**dataset_args)
+
+                logger.debug("Transforms %s / %s :\n%s", idx + 1, len(datasets_config), train_transforms)
+                datasets.append(dataset)
+                logger.info(
+                    "Data size for %s (%s/%s): %s.",
+                    dataset_config.text_description,  # type: ignore
+                    idx + 1,
+                    len(datasets_config),
+                    len(dataset),
+                )
+            dataset_per_repeat[r] = datasets
+        dataset_per_percentages[p] = dataset_per_repeat
+
+    return dataset_per_percentages
+
 
 def setup_train(
     run_name: str,
@@ -247,6 +314,8 @@ def setup_train(
         logger.info("No validation data.")
         validation_data = None
 
+
+
     # Create the optimizers
     logger.info("Building optimizers.")
     optimizer_params = [{"params": env.engine.model.parameters()}]
@@ -302,17 +371,28 @@ def setup_train(
             initialization_checkpoint = env.cfg.training.model_checkpoint
 
     num_workers = env.cfg.training['num_workers'];
-    env.engine.train(
-        optimizer,
-        lr_scheduler,
-        training_datasets,
-        env.experiment_dir,
-        validation_datasets=validation_data,
-        resume=resume,
-        initialization=initialization_checkpoint,
-        start_with_validation=force_validation,
-        num_workers=num_workers,
-    )
+    if env.cfg.benchmark.active is True:
+        env.engine.benchmark(
+            training_datasets,
+            env.experiment_dir,
+            percentages = env.cfg.benchmark.percentages,
+            repeats = env.cfg.benchmark.repeats,
+            benchmark_datasets=validation_data,
+            start_with_validation=force_validation,
+            num_workers=num_workers,
+        );
+    else:
+        env.engine.train(
+            optimizer,
+            lr_scheduler,
+            training_datasets,
+            env.experiment_dir,
+            validation_datasets=validation_data,
+            resume=resume,
+            initialization=initialization_checkpoint,
+            start_with_validation=force_validation,
+            num_workers=num_workers,
+        )
 
 
 def train_from_argparse(args: argparse.Namespace):
