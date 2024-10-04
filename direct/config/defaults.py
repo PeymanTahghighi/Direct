@@ -64,6 +64,8 @@ class TrainingConfig(BaseConfig):
     # Validation
     validation_steps: int = 1000
     validation_set_size: float = 0.5
+    pin_memory: bool =  False
+    prefetch_factor: int =  1
 
     # Gradient
     gradient_steps: int = 1

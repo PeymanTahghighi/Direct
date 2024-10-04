@@ -205,6 +205,8 @@ class Engine(ABC, DataDimensionality):
         dataset: Dataset,
         batch_sampler: Optional[Sampler] = None,
         num_workers: int = 6,
+        pin_memory: bool = False,
+        prefetch_factor: int = 1
     ) -> DataLoader:
         # TODO(jt): Custom memory pinning.
         loader = DataLoader(
@@ -215,8 +217,8 @@ class Engine(ABC, DataDimensionality):
             num_workers=num_workers,
             drop_last=False,
             shuffle=False,
-            pin_memory=False,  # This can do strange things, and needs a custom implementation.
-            # prefetch_factor=1,
+            pin_memory=pin_memory,  # This can do strange things, and needs a custom implementation.
+            prefetch_factor=prefetch_factor,
             # persistent_workers=True,
         )
         return loader
@@ -251,7 +253,9 @@ class Engine(ABC, DataDimensionality):
         experiment_directory: Optional[pathlib.Path] = None,
         num_workers: int = 6,
         start_with_validation: bool = False,
-        validation_set_size: float = 0.5
+        validation_set_size: float = 0.5,
+        pin_memory: bool = False,
+        prefetch_factor: int = 1
     ):
         self.logger.info(f"Local rank: {communication.get_local_rank()}.")
         self.models_training_mode()
@@ -286,6 +290,8 @@ class Engine(ABC, DataDimensionality):
             training_data,
             batch_sampler=training_sampler,
             num_workers=num_workers,
+            pin_memory = pin_memory,
+            prefetch_factor = prefetch_factor
         )
 
         # Convenient shorthand
@@ -557,7 +563,9 @@ class Engine(ABC, DataDimensionality):
         start_with_validation: bool = False,
         initialization: Optional[PathOrString] = None,
         num_workers: int = 6,
-        validation_set_size: float = 0.5
+        validation_set_size: float = 0.5,
+        pin_memory: bool = False,
+        prefetch_factor: int = 1
     ) -> None:
         self.logger.info("Starting training.")
         # Can consider not to make this a member of self, but that requires that optimizer is passed to
@@ -687,7 +695,9 @@ class Engine(ABC, DataDimensionality):
                 experiment_directory=experiment_directory,
                 num_workers=num_workers,
                 start_with_validation=start_with_validation,
-                validation_set_size = validation_set_size
+                validation_set_size = validation_set_size,
+                pin_memory = pin_memory,
+                prefetch_factor = prefetch_factor
             )
 
         self.logger.info("Training completed.")

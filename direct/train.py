@@ -316,6 +316,8 @@ def setup_train(
         initialization=initialization_checkpoint,
         start_with_validation=force_validation,
         num_workers=num_workers,
+        pin_memory = env.cfg.training.pin_memory,
+        prefetch_factor = env.cfg.training.prefetch_factor
     )
 
 
