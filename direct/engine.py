@@ -251,6 +251,7 @@ class Engine(ABC, DataDimensionality):
         experiment_directory: Optional[pathlib.Path] = None,
         num_workers: int = 6,
         start_with_validation: bool = False,
+        validation_set_size: float = 0.5
     ):
         self.logger.info(f"Local rank: {communication.get_local_rank()}.")
         self.models_training_mode()
@@ -294,6 +295,7 @@ class Engine(ABC, DataDimensionality):
             None,
             experiment_directory,
             num_workers=num_workers,
+            validation_set_size = validation_set_size
         )
 
         total_iter = self.cfg.training.num_iterations  # type: ignore
@@ -419,6 +421,7 @@ class Engine(ABC, DataDimensionality):
         experiment_directory,
         iter_idx,
         num_workers: int = 6,
+        validation_set_size: float = 0.5
     ):
         if not validation_datasets:
             return
@@ -430,14 +433,33 @@ class Engine(ABC, DataDimensionality):
             self.logger.info("Evaluating: %s...", curr_dataset_name)
             self.logger.info("Building dataloader for dataset: %s.", curr_dataset_name)
 
+            data = curr_validation_dataset.data
+            all_filenames = list(curr_validation_dataset.volume_indices.keys())
+            filenames_filter = shuffle(all_filenames);
+            end_point = max(1,int(len(filenames_filter) * validation_set_size))
+            filenames_filter = filenames_filter[:end_point]
+            filenames_filter_names = [Path(f).stem for f in filenames_filter]
+            new_data = [];
+            new_file_names = dict();
+            current_slice_number = 0;
+            for ffn, ff in zip(filenames_filter_names, filenames_filter):
+                for d in data:
+                    if ffn in d:
+                        new_data.append(d);
+                num_slices = curr_validation_dataset.volume_indices[ff].stop - curr_validation_dataset.volume_indices[ff].start
+                new_file_names[ff] = range(current_slice_number, current_slice_number + num_slices)
+            dataset_clone = copy(curr_validation_dataset);
+            dataset_clone.data = new_data;
+            dataset_clone.volume_indices = new_file_names;
+
             curr_batch_sampler = self.build_batch_sampler(
-                curr_validation_dataset,
+                dataset_clone,
                 batch_size=self.cfg.validation.batch_size,  # type: ignore
                 sampler_type="sequential",
                 limit_number_of_volumes=None,
             )
             curr_data_loader = self.build_loader(
-                curr_validation_dataset,
+                dataset_clone,
                 batch_sampler=curr_batch_sampler,
                 num_workers=num_workers,
             )
@@ -452,6 +474,7 @@ class Engine(ABC, DataDimensionality):
                 loss_fns,
             )
 
+
             if experiment_directory:
                 json_output_fn = experiment_directory / f"metrics_val_{curr_dataset_name}_{iter_idx}.json"
                 json_output_fn.parent.mkdir(exist_ok=True, parents=True)  # A / in the filename can create a folder
@@ -464,6 +487,7 @@ class Engine(ABC, DataDimensionality):
 
             # Metric dict still needs to be reduced as it gives values *per* data
             curr_metric_dict = reduce_list_of_dicts(list(curr_metrics_per_case.values()), mode="average")
+            self.logger.info(f"Results for {curr_dataset_name}: PSNR: {curr_metric_dict['fastmri_psnr_metric'].item()} \t SSIM: {curr_metric_dict['fastmri_ssim_metric'].item()}");
 
             key_prefix = "val/" if not curr_dataset_name else f"val/{curr_dataset_name}/"
             loss_reduced = sum(curr_loss_dict.values())
@@ -501,7 +525,7 @@ class Engine(ABC, DataDimensionality):
 
         # Visualize slices, and crop to the largest volume
         visualize_slices = make_grid(
-            crop_to_largest(visualize_slices + difference_slices, pad_value=0),
+            crop_to_largest(visualize_slices, pad_value=0),
             nrow=self.cfg.logging.tensorboard.num_images,  # type: ignore
             scale_each=True,
         )
@@ -533,6 +557,7 @@ class Engine(ABC, DataDimensionality):
         start_with_validation: bool = False,
         initialization: Optional[PathOrString] = None,
         num_workers: int = 6,
+        validation_set_size: float = 0.5
     ) -> None:
         self.logger.info("Starting training.")
         # Can consider not to make this a member of self, but that requires that optimizer is passed to
@@ -662,6 +687,7 @@ class Engine(ABC, DataDimensionality):
                 experiment_directory=experiment_directory,
                 num_workers=num_workers,
                 start_with_validation=start_with_validation,
+                validation_set_size = validation_set_size
             )
 
         self.logger.info("Training completed.")

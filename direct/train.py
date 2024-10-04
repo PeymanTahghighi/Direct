@@ -311,6 +311,7 @@ def setup_train(
         training_datasets,
         env.experiment_dir,
         validation_datasets=validation_data,
+        validation_set_size = env.cfg.training.validation_set_size,
         resume=resume,
         initialization=initialization_checkpoint,
         start_with_validation=force_validation,
