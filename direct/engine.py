@@ -448,12 +448,14 @@ class Engine(ABC, DataDimensionality):
             new_data = [];
             new_file_names = dict();
             current_slice_number = 0;
+
             for ffn, ff in zip(filenames_filter_names, filenames_filter):
                 for d in data:
                     if ffn in d:
                         new_data.append(d);
                 num_slices = curr_validation_dataset.volume_indices[ff].stop - curr_validation_dataset.volume_indices[ff].start
                 new_file_names[ff] = range(current_slice_number, current_slice_number + num_slices)
+                current_slice_number += num_slices;
             dataset_clone = copy(curr_validation_dataset);
             dataset_clone.data = new_data;
             dataset_clone.volume_indices = new_file_names;
