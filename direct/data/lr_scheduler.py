@@ -49,6 +49,7 @@ class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):  # pylint: disab
         warmup_iterations: int = 1000,
         warmup_method: str = "linear",
         last_epoch: int = -1,
+        enabled: bool = False
     ):
         if not list(milestones) == sorted(milestones):
             raise ValueError(
@@ -59,6 +60,8 @@ class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):  # pylint: disab
         self.warmup_factor = warmup_factor
         self.warmup_iterations = warmup_iterations
         self.warmup_method = warmup_method
+        self.enabled = enabled;
+
         super().__init__(optimizer, last_epoch)
 
     def get_lr(self) -> List[float]:  # type: ignore
@@ -68,10 +71,17 @@ class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):  # pylint: disab
             self.warmup_iterations,
             self.warmup_factor,
         )
-        return [
-            base_lr * warmup_factor * self.gamma ** bisect_right(self.milestones, self.last_epoch)  # type: ignore
-            for base_lr in self.base_lrs  # type: ignore
-        ]
+
+        if self.enabled:
+            return [
+                base_lr * warmup_factor * self.gamma ** bisect_right(self.milestones, self.last_epoch)  # type: ignore
+                for base_lr in self.base_lrs  # type: ignore
+            ]
+        else:
+            return [
+                base_lr * warmup_factor  # type: ignore
+                for base_lr in self.base_lrs  # type: ignore
+            ]
 
     def _compute_values(self) -> List[float]:
         # The new interface

@@ -600,7 +600,7 @@ class Args(argparse.ArgumentParser):
         )
         self.add_argument("--seed", default=42, type=int, help="Seed for random number generators.")
         self.add_argument("--num-workers", type=int, default=1, help="Number of workers.")
-        self.add_argument("--mixed-precision", default=True, help="Use mixed precision.", action="store_true")
+        self.add_argument("--mixed-precision", help="Use mixed precision.", action="store_true")
         self.add_argument("--debug", help="Set debug mode true.", action="store_true")
 
         self.add_argument("--num-gpus", type=int, default=1, help="# GPUs per machine.")

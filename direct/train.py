@@ -284,6 +284,7 @@ def setup_train(
         warmup_factor=1 / 3.0,
         warmup_iterations=env.cfg.training.lr_warmup_iter,
         warmup_method="linear",
+        enabled=env.cfg.training.lr_scheduler
     )
 
     # Just to make sure.

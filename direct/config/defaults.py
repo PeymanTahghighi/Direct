@@ -55,6 +55,7 @@ class TrainingConfig(BaseConfig):
     lr_step_size: int = 5000
     lr_gamma: float = 0.5
     lr_warmup_iter: int = 500
+    lr_scheduler: bool = False
 
     # Stochastic weight averaging
     swa_start_iter: Optional[int] = None

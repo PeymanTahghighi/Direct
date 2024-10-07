@@ -619,7 +619,7 @@ class Engine(ABC, DataDimensionality):
         if start_iter > 0 and initialization:
             self.logger.warning(
                 f"Initialization checkpoint set to {initialization},"
-                f" but model will resume training from previous checkpoint. Initialization ignored."
+                f" continue training from iter: {start_iter}."
             )
         elif initialization:
             self.logger.info(f"Initializing from {initialization}...")
