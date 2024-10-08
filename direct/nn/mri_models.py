@@ -805,7 +805,10 @@ class MRIModelEngine(Engine):
                 reconstruction_size=data.get("reconstruction_size", None),
             )
             # Compute output
+
+            t0 = time.time();
             iteration_output = self._do_iteration(data, loss_fns=loss_fns, regularizer_fns=regularizer_fns)
+            print(f'iteration took : {time.time() - t0}');
             output = iteration_output.output_image
             loss_dict = iteration_output.data_dict
 

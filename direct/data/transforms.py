@@ -872,6 +872,7 @@ def reduce_operator(
     coil_data: torch.Tensor,
     sensitivity_map: torch.Tensor,
     dim: int = 0,
+    keep_dim = False
 ) -> torch.Tensor:
     r"""
     Given zero-filled reconstructions from multiple coils :math:`\{x_i\}_{i=1}^{N_c}` and
@@ -907,13 +908,14 @@ def reduce_operator(
     assert_complex(coil_data, complex_last=True)
     assert_complex(sensitivity_map, complex_last=True)
 
-    return complex_multiplication(conjugate(sensitivity_map), coil_data).sum(dim)
+    return complex_multiplication(conjugate(sensitivity_map), coil_data).sum(dim, keepdim=keep_dim)
 
 
 def expand_operator(
     data: torch.Tensor,
     sensitivity_map: torch.Tensor,
     dim: int = 0,
+    unsqueeze = True
 ) -> torch.Tensor:
     r"""
     Given a reconstructed image :math:`x` and coil sensitivity maps :math:`\{S_i\}_{i=1}^{N_c}`, it returns
@@ -948,7 +950,7 @@ def expand_operator(
     assert_complex(data, complex_last=True)
     assert_complex(sensitivity_map, complex_last=True)
 
-    return complex_multiplication(sensitivity_map, data.unsqueeze(dim))
+    return complex_multiplication(sensitivity_map, data.unsqueeze(dim) if unsqueeze else data)
 
 
 def complex_image_resize(

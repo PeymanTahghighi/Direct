@@ -218,7 +218,7 @@ class Engine(ABC, DataDimensionality):
             drop_last=False,
             shuffle=False,
             pin_memory=pin_memory,  # This can do strange things, and needs a custom implementation.
-            prefetch_factor=prefetch_factor,
+            prefetch_factor= None if num_workers == 0 else prefetch_factor,
             # persistent_workers=True,
         )
         return loader
@@ -435,6 +435,8 @@ class Engine(ABC, DataDimensionality):
         storage = get_event_storage()
 
         for curr_validation_dataset in validation_datasets:
+            import time;
+            t0 = time.time();
             curr_dataset_name = curr_validation_dataset.text_description
             self.logger.info("Evaluating: %s...", curr_dataset_name)
             self.logger.info("Building dataloader for dataset: %s.", curr_dataset_name)
@@ -482,6 +484,8 @@ class Engine(ABC, DataDimensionality):
                 loss_fns,
             )
 
+            print(f'total time for {curr_dataset_name}: {time.time() - t0}');
+
 
             if experiment_directory:
                 json_output_fn = experiment_directory / f"metrics_val_{curr_dataset_name}_{iter_idx}.json"
@@ -497,6 +501,7 @@ class Engine(ABC, DataDimensionality):
             curr_metric_dict = reduce_list_of_dicts(list(curr_metrics_per_case.values()), mode="average")
             self.logger.info(f"Results for {curr_dataset_name}: PSNR: {curr_metric_dict['fastmri_psnr_metric'].item()} \t SSIM: {curr_metric_dict['fastmri_ssim_metric'].item()}");
 
+            t0 = time.time();
             key_prefix = "val/" if not curr_dataset_name else f"val/{curr_dataset_name}/"
             loss_reduced = sum(curr_loss_dict.values())
             storage.add_scalars(
@@ -510,14 +515,15 @@ class Engine(ABC, DataDimensionality):
             visualize_slices = self.process_slices_for_visualization(visualize_slices, visualize_target)
             storage.add_image(f"{key_prefix}prediction", visualize_slices)
 
-            if iter_idx // self.cfg.training.validation_steps - 1 == 0:  # type: ignore
-                visualize_target = [normalize_image(image) for image in visualize_target]
-                visualize_target = make_grid(
-                    crop_to_largest(visualize_target, pad_value=0),
-                    nrow=self.cfg.logging.tensorboard.num_images,  # type: ignore
-                    scale_each=True,
-                )
-                storage.add_image(f"{key_prefix}target", visualize_target)
+            #if iter_idx // self.cfg.training.validation_steps - 1 == 0:  # type: ignore
+            visualize_target = [normalize_image(image) for image in visualize_target]
+            visualize_target = make_grid(
+                crop_to_largest(visualize_target, pad_value=0),
+                nrow=self.cfg.logging.tensorboard.num_images,  # type: ignore
+                scale_each=True,
+            )
+            storage.add_image(f"{key_prefix}target", visualize_target)
+            print(f'adding visualizations took: {time.time() - t0}')
 
             self.logger.info("Done evaluation of %s at iteration %s.", str(curr_dataset_name), str(iter_idx))
         self.model.train()

@@ -279,8 +279,11 @@ class H5SliceData(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
+        import time;
+        t0 = time.time();
         with open(self.data[idx], 'rb') as f:
             sample = pickle.load(f);
+        print(f'loading {self.data[idx]} took : {time.time() - t0}');
         # filename, slice_no = self.data[idx]
         # filename = pathlib.Path(filename)
         # metadata = None if not self.metadata else self.metadata[filename.name]
