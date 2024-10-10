@@ -819,6 +819,7 @@ class MRIModelEngine(Engine):
                 resolution=resolution,
                 complex_axis=self._complex_dim,
             )
+            
 
             if add_target:
                 target_abs = _process_output(

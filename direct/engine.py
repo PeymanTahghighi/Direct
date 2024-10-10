@@ -42,8 +42,6 @@ import os
 from pathlib import Path
 from copy import copy
 
-from sklearn.utils import shuffle
-import pickle
 
 logging.captureWarnings(True)
 
@@ -441,35 +439,14 @@ class Engine(ABC, DataDimensionality):
             self.logger.info("Evaluating: %s...", curr_dataset_name)
             self.logger.info("Building dataloader for dataset: %s.", curr_dataset_name)
 
-            data = curr_validation_dataset.data
-            all_filenames = list(curr_validation_dataset.volume_indices.keys())
-            filenames_filter = shuffle(all_filenames);
-            end_point = max(1,int(len(filenames_filter) * validation_set_size))
-            filenames_filter = filenames_filter[:end_point]
-            filenames_filter_names = [Path(f).stem for f in filenames_filter]
-            new_data = [];
-            new_file_names = dict();
-            current_slice_number = 0;
-
-            for ffn, ff in zip(filenames_filter_names, filenames_filter):
-                for d in data:
-                    if ffn in d:
-                        new_data.append(d);
-                num_slices = curr_validation_dataset.volume_indices[ff].stop - curr_validation_dataset.volume_indices[ff].start
-                new_file_names[ff] = range(current_slice_number, current_slice_number + num_slices)
-                current_slice_number += num_slices;
-            dataset_clone = copy(curr_validation_dataset);
-            dataset_clone.data = new_data;
-            dataset_clone.volume_indices = new_file_names;
-
             curr_batch_sampler = self.build_batch_sampler(
-                dataset_clone,
+                curr_validation_dataset,
                 batch_size=self.cfg.validation.batch_size,  # type: ignore
                 sampler_type="sequential",
                 limit_number_of_volumes=None,
             )
             curr_data_loader = self.build_loader(
-                dataset_clone,
+                curr_validation_dataset,
                 batch_sampler=curr_batch_sampler,
                 num_workers=num_workers,
             )

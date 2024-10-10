@@ -301,8 +301,8 @@ class FastMRIDataset(H5SliceData):
 
     def __getitem__(self, idx: int) -> dict[str, Any]:
         sample = super().__getitem__(idx)
-        if self.data_type == 'val':
-            return sample;
+        # if self.data_type == 'val':
+        #     return sample;
 
         if self.pass_attrs:
             #sample["scaling_factor"] = sample["attrs"]["max"]
@@ -332,9 +332,9 @@ class FastMRIDataset(H5SliceData):
             sample["acs_mask"] = self.__broadcast_mask(kspace_shape, self.__get_acs_from_fastmri_mask(sampling_mask))
 
         # Explicitly zero-out the outer parts of kspace which are padded
-        sample["kspace"] = explicit_zero_padding(
-            sample["kspace"], sample["padding_left"], sample["padding_right"]
-        )
+        # sample["kspace"] = explicit_zero_padding(
+        #     sample["kspace"], sample["padding_left"], sample["padding_right"]
+        # )
 
         if self.transform:
             sample = self.transform(sample)

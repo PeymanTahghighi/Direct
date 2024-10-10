@@ -15,6 +15,9 @@ from direct.utils.dataset import get_filenames_for_datasets, explicit_zero_paddi
 import os
 import pickle
 from typing import Callable
+from tqdm import tqdm
+from sklearn.utils import shuffle
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +102,8 @@ class H5SliceData(Dataset):
         self.data: List[Tuple] = []
 
         self.volume_indices: Dict[pathlib.Path, range] = {}
+        self.loaded_files = dict();
+        self.data_type = data_type;
 
         # If filenames_filter and filenames_lists are given, it will load files in filenames_filter
         # and filenames_lists will be ignored.
@@ -180,44 +185,69 @@ class H5SliceData(Dataset):
                     self.logger.info(f"Parsing: {(idx + 1) / len(filepaths) * 100:.2f}%.")
                 try:
                     with h5py.File(filepath, "r") as data:
-                        kspace_shape = data["kspace"].shape  # pylint: disable = E1101
+                        kspace = data["kspace"]
+                        kspace_shape = kspace.shape
                         num_slices = kspace_shape[0]
 
-                        for slice_no in range(num_slices):
-                            if os.path.exists(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch')) is True:
-                                self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'));
-                                continue;
+                        sample_memap = np.memmap(os.path.join(base_root,f"cache_{data_type}", f'{filename}_cache.dat'), mode='w+', dtype=np.complex64, shape=kspace.shape);
+                        sample_memap[:] = kspace[:];
+                        sample_memap.flush();
+                        with open(os.path.join(base_root,f"cache_{data_type}", f'{filename}_cache.meta'), 'wb') as meta_file:
+                            data_to_wrtie = dict();
+                            data_to_wrtie['shape'] = kspace_shape;
+                            data_to_wrtie['file_path'] = filepath;
+                            if self.pass_attrs:
+                                dict_attrs = dict(data.attrs)
+                                data_to_wrtie['attrs'] = dict_attrs;
+
+
+                            if self.extra_keys:
+                                for extra_key in self.extra_keys:
+                                    if extra_key == "attrs":
+                                        raise ValueError("attrs need to be passed by setting `pass_attrs = True`.")
+                                    if extra_key in data.keys():
+                                        data_to_wrtie[extra_key] = data[extra_key][()]
+                            
+                            pickle.dump(data_to_wrtie, meta_file);
+                        self.data.append([os.path.join(base_root,f"cache_{data_type}", f'{filename}_cache.dat'), os.path.join(base_root,f"cache_{data_type}", f'{filename}_cache.meta')]);
+
+                        # for slice_no in range(num_slices):
+                        #     if os.path.exists(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch')) is True:
+                        #         self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'));
+                        #         continue;
 
                             
-                            kspace, extra_data = self.get_slice_data(data, filepath, slice_no, pass_attrs=self.pass_attrs, extra_keys=self.extra_keys);
+                        #     kspace, extra_data = self.get_slice_data(data, filepath, slice_no, pass_attrs=self.pass_attrs, extra_keys=self.extra_keys);
 
-                            sample = {"kspace": kspace, "filename": str(filepath), "slice_no": slice_no}
+                        #     sample = {"filename": str(filepath), "slice_no": slice_no}
 
-                            # If the sensitivity maps exist, load these
-                            if self.sensitivity_maps:
-                                sensitivity_map, _ = self.get_slice_data(self.sensitivity_maps / filepath.name, slice_no)
-                                sample["sensitivity_map"] = sensitivity_map
+                        #     # If the sensitivity maps exist, load these
+                        #     if self.sensitivity_maps:
+                        #         sensitivity_map, _ = self.get_slice_data(self.sensitivity_maps / filepath.name, slice_no)
+                        #         sample["sensitivity_map"] = sensitivity_map
 
-                            sample.update(extra_data)
+                        #     sample.update(extra_data)
 
-                            if transforms is not None:
-                                sample.update(parse_fastmri_header(sample, "ismrmrd_header"))
-                                if "ismrmrd_header" in sample.keys():
-                                    del sample["ismrmrd_header"]
-                                # Some images have strange behavior, e.g. FLAIR 203.
-                                image_shape = sample["kspace"].shape
-                                if image_shape[-1] < sample["reconstruction_size"][-2]:  # reconstruction size is (x, y, z)
-                                    sample["reconstruction_size"] = (image_shape[-1], image_shape[-1], 1)
+                            
+
+                        #     # if transforms is not None:
+                        #     #     sample.update(parse_fastmri_header(sample, "ismrmrd_header"))
+                        #     #     if "ismrmrd_header" in sample.keys():
+                        #     #         del sample["ismrmrd_header"]
+                        #     #     # Some images have strange behavior, e.g. FLAIR 203.
+                        #     #     image_shape = sample["kspace"].shape
+                        #     #     if image_shape[-1] < sample["reconstruction_size"][-2]:  # reconstruction size is (x, y, z)
+                        #     #         sample["reconstruction_size"] = (image_shape[-1], image_shape[-1], 1)
                                 
-                                sample["kspace"] = explicit_zero_padding(
-                                    sample["kspace"], sample["padding_left"], sample["padding_right"]
-                                    )
+                        #     #     sample["kspace"] = explicit_zero_padding(
+                        #     #         sample["kspace"], sample["padding_left"], sample["padding_right"]
+                        #     #         )
                                 
-                                sample = transforms(sample);
+                        #     #     sample = transforms(sample);
 
-                            with open(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'), 'wb') as f:
-                                pickle.dump(sample, f);
-                            self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'));
+                        #     with open(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'), 'wb') as f:
+                        #         pickle.dump(sample, f);
+                        #     self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'));
 
                     #self.verify_extra_h5_integrity(filepath, kspace_shape, extra_h5s=extra_h5s)  # pylint: disable = E1101
 
@@ -250,8 +280,46 @@ class H5SliceData(Dataset):
         
         else:
             self.logger.info(f'{dataset_description} found in cache, loading from cache...')
+            
+
             self.data, self.volume_indices = dataset_cache[dataset_description];
             
+    
+        if self.data_type == 'val':
+            
+            self.index_to_file_path = [];
+            for v in self.volume_indices:
+                t = [v for _ in range(self.volume_indices[v].start, self.volume_indices[v].stop)];
+                self.index_to_file_path.extend(t);
+            for d in self.data:
+                with open(d[1], 'rb') as meta:
+                    meta_data = pickle.load(meta);
+                    filepath = meta_data['file_path'];
+                    meta_data.pop('file_path');
+                self.loaded_files[filepath] = [np.memmap(d[0], mode='r', dtype=np.complex64, shape=meta_data['shape']), meta_data];
+
+
+                # data = self.data
+                # all_filenames = list(self.volume_indices.keys())
+                # filenames_filter = shuffle(all_filenames, random_state=42);
+                # end_point = max(1,int(len(filenames_filter) * 0.3))
+                # filenames_filter = filenames_filter[:end_point]
+                # filenames_filter_names = [Path(f).stem for f in filenames_filter]
+                # new_data = [];
+                # new_file_names = dict();
+                # current_slice_number = 0;
+
+                # for ffn, ff in zip(filenames_filter_names, filenames_filter):
+                #     for d in data:
+                #         if ffn in d:
+                #             new_data.append(d);
+                #     num_slices = self.volume_indices[ff].stop - self.volume_indices[ff].start
+                #     new_file_names[ff] = range(current_slice_number, current_slice_number + num_slices)
+                #     current_slice_number += num_slices;
+
+                # self.data = new_data;
+                # self.volume_indices = new_file_names;   
+                # print(self.vol)         
 
 
     @staticmethod
@@ -280,10 +348,18 @@ class H5SliceData(Dataset):
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         import time;
-        t0 = time.time();
-        with open(self.data[idx], 'rb') as f:
-            sample = pickle.load(f);
-        print(f'loading {self.data[idx]} took : {time.time() - t0}');
+        #t0 = time.time();
+        if self.data_type == 'val':
+            slice_no = idx - self.volume_indices[self.index_to_file_path[idx]].start
+            kspace = self.loaded_files[self.index_to_file_path[idx]][0][slice_no];
+            sample = {"kspace": kspace, "filename": str(self.index_to_file_path[idx]), "slice_no": slice_no}
+            sample.update(self.loaded_files[self.index_to_file_path[idx]][1])
+        else:
+            with open(self.data[idx], 'rb') as f:
+                sample = pickle.load(f);
+
+       # print(f'loading {self.data[idx]} took : {time.time() - t0}');
+        #self.logger.info(f'loading {self.data[idx]} took : {time.time() - t0} size: {os.path.getsize(self.data[idx]) / (1024 * 1024)}')
         # filename, slice_no = self.data[idx]
         # filename = pathlib.Path(filename)
         # metadata = None if not self.metadata else self.metadata[filename.name]
@@ -296,7 +372,7 @@ class H5SliceData(Dataset):
         #     kspace = kspace[np.newaxis, ...]
 
         # # TODO: Write a custom collate function which disables batching for certain keys
-        # sample = {"kspace": kspace, "filename": str(filename), "slice_no": slice_no}
+        
 
         # # If the sensitivity maps exist, load these
         # if self.sensitivity_maps:
@@ -306,7 +382,7 @@ class H5SliceData(Dataset):
         # if metadata is not None:
         #     sample["metadata"] = metadata
 
-        # sample.update(extra_data)
+        # 
 
         # if self.pass_dictionaries:
         #     for key in self.pass_dictionaries:
