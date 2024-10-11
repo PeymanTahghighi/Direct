@@ -18,6 +18,7 @@ from typing import Callable
 from tqdm import tqdm
 from sklearn.utils import shuffle
 from pathlib import Path
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -189,9 +190,12 @@ class H5SliceData(Dataset):
                         kspace_shape = kspace.shape
                         num_slices = kspace_shape[0]
 
-                        sample_memap = np.memmap(os.path.join(base_root,f"cache_{data_type}", f'{filename}_cache.dat'), mode='w+', dtype=np.complex64, shape=kspace.shape);
-                        sample_memap[:] = kspace[:];
-                        sample_memap.flush();
+                        masked_kspace = np.memmap(os.path.join(base_root,f"cache_{data_type}", f'{filename}_masked_kspace.dat'), mode='w+', dtype=np.float32, shape = (*kspace_shape, 2));
+                        sensitivity_map = np.memmap(os.path.join(base_root,f"cache_{data_type}", f'{filename}_sensitivity_map.dat'), mode='w+',dtype=np.float32, shape = (*kspace_shape,2));
+                        padding = np.memmap(os.path.join(base_root,f"cache_{data_type}", f'{filename}_padding.dat'), mode='w+',dtype=bool, shape = (kspace_shape[0], 1, kspace_shape[2], kspace_shape[3], 1));
+                        sampling_mask = np.memmap(os.path.join(base_root,f"cache_{data_type}", f'{filename}_sampling_mask.dat'), mode='w+',dtype=bool, shape = (kspace_shape[0], 1, kspace_shape[2], kspace_shape[3], 1));
+                        target = np.memmap(os.path.join(base_root,f"cache_{data_type}", f'{filename}_target.dat'), mode='w+',dtype=np.float32, shape = (kspace_shape[0], kspace_shape[2], kspace_shape[3]));
+
                         with open(os.path.join(base_root,f"cache_{data_type}", f'{filename}_cache.meta'), 'wb') as meta_file:
                             data_to_wrtie = dict();
                             data_to_wrtie['shape'] = kspace_shape;
@@ -208,46 +212,60 @@ class H5SliceData(Dataset):
                                     if extra_key in data.keys():
                                         data_to_wrtie[extra_key] = data[extra_key][()]
                             
+                            data_to_wrtie.update(parse_fastmri_header(data_to_wrtie, "ismrmrd_header"))
+                            data_to_wrtie['masked_kspace_shape'] = masked_kspace.shape;
+                            data_to_wrtie['sensitivity_map_shape'] = sensitivity_map.shape;
+                            data_to_wrtie['padding_shape'] = padding.shape;
+                            data_to_wrtie['sampling_mask_shape'] = sampling_mask.shape;
+                            data_to_wrtie['target_shape'] = target.shape;
+                            
+                            for slice_no in range(num_slices):
+                                
+                                kspace, extra_data = self.get_slice_data(data, filepath, slice_no, pass_attrs=self.pass_attrs, extra_keys=self.extra_keys);
+
+                                sample = {'kspace': kspace, "filename": str(filepath), "slice_no": slice_no}
+
+                                # If the sensitivity maps exist, load these
+                                if self.sensitivity_maps:
+                                    sensitivity_map, _ = self.get_slice_data(self.sensitivity_maps / filepath.name, slice_no)
+                                    sample["sensitivity_map"] = sensitivity_map
+
+                                sample.update(extra_data)
+
+                                if transforms is not None:
+                                    sample.update(parse_fastmri_header(sample, "ismrmrd_header"))
+                                    if "ismrmrd_header" in sample.keys():
+                                        del sample["ismrmrd_header"]
+                                    # Some images have strange behavior, e.g. FLAIR 203.
+                                    image_shape = sample["kspace"].shape
+                                    if image_shape[-1] < sample["reconstruction_size"][-2]:  # reconstruction size is (x, y, z)
+                                        sample["reconstruction_size"] = (image_shape[-1], image_shape[-1], 1)
+                                    
+                                    sample["kspace"] = explicit_zero_padding(
+                                        sample["kspace"], sample["padding_left"], sample["padding_right"]
+                                        )
+                                    
+                                    sample = transforms(sample);
+                                    padding[slice_no] = np.array(sample['padding']);
+                                    sampling_mask[slice_no] = np.array(sample['sampling_mask']);
+                                    sensitivity_map[slice_no] = np.array(sample['sensitivity_map']);
+                                    masked_kspace[slice_no] = np.array(sample['masked_kspace']);
+                                    target[slice_no] = np.array(sample['target']);
+                                    data_to_wrtie[slice_no] = [sample['scaling_factor'], sample['scaling_diff']]
+
                             pickle.dump(data_to_wrtie, meta_file);
-                        self.data.append([os.path.join(base_root,f"cache_{data_type}", f'{filename}_cache.dat'), os.path.join(base_root,f"cache_{data_type}", f'{filename}_cache.meta')]);
+                        masked_kspace.flush()
+                        sensitivity_map.flush() 
+                        padding.flush()
+                        sampling_mask.flush()
+                        target.flush()
 
-                        # for slice_no in range(num_slices):
-                        #     if os.path.exists(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch')) is True:
-                        #         self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'));
-                        #         continue;
-
-                            
-                        #     kspace, extra_data = self.get_slice_data(data, filepath, slice_no, pass_attrs=self.pass_attrs, extra_keys=self.extra_keys);
-
-                        #     sample = {"filename": str(filepath), "slice_no": slice_no}
-
-                        #     # If the sensitivity maps exist, load these
-                        #     if self.sensitivity_maps:
-                        #         sensitivity_map, _ = self.get_slice_data(self.sensitivity_maps / filepath.name, slice_no)
-                        #         sample["sensitivity_map"] = sensitivity_map
-
-                        #     sample.update(extra_data)
-
-                            
-
-                        #     # if transforms is not None:
-                        #     #     sample.update(parse_fastmri_header(sample, "ismrmrd_header"))
-                        #     #     if "ismrmrd_header" in sample.keys():
-                        #     #         del sample["ismrmrd_header"]
-                        #     #     # Some images have strange behavior, e.g. FLAIR 203.
-                        #     #     image_shape = sample["kspace"].shape
-                        #     #     if image_shape[-1] < sample["reconstruction_size"][-2]:  # reconstruction size is (x, y, z)
-                        #     #         sample["reconstruction_size"] = (image_shape[-1], image_shape[-1], 1)
-                                
-                        #     #     sample["kspace"] = explicit_zero_padding(
-                        #     #         sample["kspace"], sample["padding_left"], sample["padding_right"]
-                        #     #         )
-                                
-                        #     #     sample = transforms(sample);
-
-                        #     with open(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'), 'wb') as f:
-                        #         pickle.dump(sample, f);
-                        #     self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'));
+                        self.data.append([os.path.join(base_root,f"cache_{data_type}", f'{filename}_masked_kspace.dat'), 
+                                          os.path.join(base_root,f"cache_{data_type}", f'{filename}_sensitivity_map.dat'), 
+                                          os.path.join(base_root,f"cache_{data_type}", f'{filename}_padding.dat'),
+                                          os.path.join(base_root,f"cache_{data_type}", f'{filename}_sampling_mask.dat'),
+                                          os.path.join(base_root,f"cache_{data_type}", f'{filename}_target.dat'),
+                                          os.path.join(base_root,f"cache_{data_type}", f'{filename}_cache.meta')]);
 
                     #self.verify_extra_h5_integrity(filepath, kspace_shape, extra_h5s=extra_h5s)  # pylint: disable = E1101
 
@@ -292,11 +310,17 @@ class H5SliceData(Dataset):
                 t = [v for _ in range(self.volume_indices[v].start, self.volume_indices[v].stop)];
                 self.index_to_file_path.extend(t);
             for d in self.data:
-                with open(d[1], 'rb') as meta:
+                with open(d[-1], 'rb') as meta:
                     meta_data = pickle.load(meta);
                     filepath = meta_data['file_path'];
                     meta_data.pop('file_path');
-                self.loaded_files[filepath] = [np.memmap(d[0], mode='r', dtype=np.complex64, shape=meta_data['shape']), meta_data];
+                
+                self.loaded_files[filepath] = [np.memmap(d[0], mode='r', dtype=np.float32, shape=meta_data['masked_kspace_shape']),
+                                               np.memmap(d[1], mode='r', dtype=np.float32, shape=meta_data['sensitivity_map_shape']),
+                                               np.memmap(d[2], mode='r', dtype=bool, shape=meta_data['padding_shape']),
+                                               np.memmap(d[3], mode='r', dtype=bool, shape=meta_data['sampling_mask_shape']),
+                                               np.memmap(d[4], mode='r', dtype=np.float32, shape=meta_data['target_shape']),
+                                               meta_data];
 
 
                 # data = self.data
@@ -351,9 +375,35 @@ class H5SliceData(Dataset):
         #t0 = time.time();
         if self.data_type == 'val':
             slice_no = idx - self.volume_indices[self.index_to_file_path[idx]].start
-            kspace = self.loaded_files[self.index_to_file_path[idx]][0][slice_no];
-            sample = {"kspace": kspace, "filename": str(self.index_to_file_path[idx]), "slice_no": slice_no}
-            sample.update(self.loaded_files[self.index_to_file_path[idx]][1])
+            masked_kspace = self.loaded_files[self.index_to_file_path[idx]][0][slice_no];
+            sensitivity_map = self.loaded_files[self.index_to_file_path[idx]][1][slice_no];
+            padding = self.loaded_files[self.index_to_file_path[idx]][2][slice_no];
+            sampling_mask = self.loaded_files[self.index_to_file_path[idx]][3][slice_no];
+            target = self.loaded_files[self.index_to_file_path[idx]][4][slice_no];
+
+
+            scaling_factor = self.loaded_files[self.index_to_file_path[idx]][5][slice_no][0];
+            scaling_diff = self.loaded_files[self.index_to_file_path[idx]][5][slice_no][1];
+            padding_left = self.loaded_files[self.index_to_file_path[idx]][5]['padding_left'];
+            padding_right = self.loaded_files[self.index_to_file_path[idx]][5]['padding_right'];
+            reconstruction_size = self.loaded_files[self.index_to_file_path[idx]][5]['reconstruction_size'];
+            encoding_size = self.loaded_files[self.index_to_file_path[idx]][5]['encoding_size'];
+            
+
+            sample = {"masked_kspace": torch.from_numpy(masked_kspace),
+                      "sensitivity_map": torch.from_numpy(sensitivity_map),
+                      "padding": torch.from_numpy(padding),
+                      "sampling_mask": torch.from_numpy(sampling_mask),
+                      "target": torch.from_numpy(target),
+                      "scaling_factor": scaling_factor,
+                      "scaling_diff": scaling_diff,
+                      "filename": str(self.index_to_file_path[idx]),
+                      "slice_no": slice_no,
+                      "padding_left": padding_left,
+                      "reconstruction_size": reconstruction_size,
+                      "encoding_size": encoding_size,
+                      "padding_right": padding_right,}
+
         else:
             with open(self.data[idx], 'rb') as f:
                 sample = pickle.load(f);

@@ -301,8 +301,8 @@ class FastMRIDataset(H5SliceData):
 
     def __getitem__(self, idx: int) -> dict[str, Any]:
         sample = super().__getitem__(idx)
-        # if self.data_type == 'val':
-        #     return sample;
+        if self.data_type == 'val':
+            return sample;
 
         if self.pass_attrs:
             #sample["scaling_factor"] = sample["attrs"]["max"]

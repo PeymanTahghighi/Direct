@@ -7,9 +7,14 @@ This is the file which builds the main parser.
 
 import argparse
 from torch.utils.tensorboard import summary
-
+import pickle
 
 def main():
+
+    import pathlib
+    temp = pathlib.PosixPath
+    pathlib.PosixPath = pathlib.WindowsPath
+    a = pickle.load(open('val_cache_cc_new.ch', 'rb'));
     """Console script for direct."""
     # From https://stackoverflow.com/questions/17073688/how-to-use-argparse-subparsers-correctly
     root_parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
