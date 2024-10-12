@@ -161,11 +161,18 @@ class H5SliceData(Dataset):
         current_slice_number = 0  # This is required to keep track of where a volume is in the dataset
 
         #check if we have already cached this dataset
-        if os.path.exists(f'{data_type}_cache.ch') is not False:
-            with open(f'{data_type}_cache.ch', 'rb') as f:
-                dataset_cache = pickle.load(f);
+        if data_type == 'val':
+            if os.path.exists(f'{data_type}_cache_{dataset_description}.ch') is not False:
+                with open(f'{data_type}_cache_{dataset_description}.ch', 'rb') as f:
+                    dataset_cache = pickle.load(f);
+            else:
+                dataset_cache = {};
         else:
-            dataset_cache = {};
+            if os.path.exists(f'{data_type}_cache.ch') is not False:
+                with open(f'{data_type}_cache.ch', 'rb') as f:
+                    dataset_cache = pickle.load(f);
+            else:
+                dataset_cache = {};
 
         if dataset_description not in dataset_cache:
             #check if we have cache folder for this dataset, take the root of the first file,
@@ -289,26 +296,29 @@ class H5SliceData(Dataset):
 
                 current_slice_number += num_slices
             
+            self.index_to_file_path = [];
+            for v in self.volume_indices:
+                t = [v for _ in range(self.volume_indices[v].start, self.volume_indices[v].stop)];
+                self.index_to_file_path.extend(t);
             
             #done loading files, cache it
-            dataset_cache[dataset_description] = [self.data, self.volume_indices]
+            dataset_cache[dataset_description] = [self.data, self.volume_indices, self.index_to_file_path]
         
-            with open(f'{data_type}_cache.ch', 'wb') as f:
+            with open(f'{data_type}_cache_{dataset_description}.ch', 'wb') as f:
                 pickle.dump(dataset_cache, f);
         
         else:
             self.logger.info(f'{dataset_description} found in cache, loading from cache...')
             
-
-            self.data, self.volume_indices = dataset_cache[dataset_description];
+            
+            if self.data_type == 'train':
+                self.data, self.volume_indices = dataset_cache[dataset_description];
+            else:
+                self.data, self.volume_indices, self.index_to_file_path = dataset_cache[dataset_description];
             
     
         if self.data_type == 'val':
-            
-            self.index_to_file_path = [];
-            for v in self.volume_indices:
-                t = [v for _ in range(self.volume_indices[v].start, self.volume_indices[v].stop)];
-                self.index_to_file_path.extend(t);
+
             for d in self.data:
                 with open(d[-1], 'rb') as meta:
                     meta_data = pickle.load(meta);
@@ -371,8 +381,6 @@ class H5SliceData(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
-        import time;
-        #t0 = time.time();
         if self.data_type == 'val':
             slice_no = idx - self.volume_indices[self.index_to_file_path[idx]].start
             masked_kspace = self.loaded_files[self.index_to_file_path[idx]][0][slice_no];
@@ -402,12 +410,11 @@ class H5SliceData(Dataset):
                       "padding_left": padding_left,
                       "reconstruction_size": reconstruction_size,
                       "encoding_size": encoding_size,
-                      "padding_right": padding_right,}
+                      "padding_right": padding_right}
 
         else:
             with open(self.data[idx], 'rb') as f:
                 sample = pickle.load(f);
-
        # print(f'loading {self.data[idx]} took : {time.time() - t0}');
         #self.logger.info(f'loading {self.data[idx]} took : {time.time() - t0} size: {os.path.getsize(self.data[idx]) / (1024 * 1024)}')
         # filename, slice_no = self.data[idx]

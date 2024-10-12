@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-import gc
+
 import pathlib
 import time
 from collections import defaultdict
@@ -788,8 +788,8 @@ class MRIModelEngine(Engine):
         loss_dict_list = []
         # TODO: Use iter_idx to keep track of volume
         for _, data in enumerate(data_loader):
+
             torch.cuda.empty_cache()
-            gc.collect()
             filename = _get_filename_from_batch(data)
             if last_filename is None:
                 last_filename = filename  # First iteration last_filename is not set.
@@ -800,15 +800,17 @@ class MRIModelEngine(Engine):
                 last_filename = filename
 
             scaling_factors = data["scaling_factor"].clone()
+
+
             resolution = _compute_resolution(
                 key=crop,
                 reconstruction_size=data.get("reconstruction_size", None),
             )
-            # Compute output
 
-            t0 = time.time();
+            # Compute output
             iteration_output = self._do_iteration(data, loss_fns=loss_fns, regularizer_fns=regularizer_fns)
-            print(f'iteration took : {time.time() - t0}');
+
+
             output = iteration_output.output_image
             loss_dict = iteration_output.data_dict
 

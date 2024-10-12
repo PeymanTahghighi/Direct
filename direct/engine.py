@@ -6,7 +6,7 @@ Implements all the main training, testing and validation logic.
 """
 
 import functools
-import gc
+
 import logging
 import pathlib
 import signal
@@ -330,7 +330,6 @@ class Engine(ABC, DataDimensionality):
                     fail_counter += 1
                     self.logger.info(f"OOM Error: {e}. Skipping batch. Retry {fail_counter}/3.")
                     self.__optimizer.zero_grad()  # type: ignore
-                    gc.collect()
                     torch.cuda.empty_cache()
                     continue
 
