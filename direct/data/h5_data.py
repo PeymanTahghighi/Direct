@@ -164,7 +164,6 @@ class H5SliceData(Dataset):
         filepaths = shuffle(filepaths, random_state = 42);
         self.logger.info(f'total file path for validation {len(filepaths)}, took 30%: {int(len(filepaths)*0.3)}')
         filepaths = filepaths[:int(len(filepaths)*0.3)];
-        
         for idx, filepath in enumerate(filepaths):
             filename = os.path.basename(filepath);
             filename = filename[:filename.rfind('.')];
