@@ -156,8 +156,15 @@ class H5SliceData(Dataset):
 
         if self.text_description:
             self.logger.info("Dataset description: %s.", self.text_description)
+            
+
     def cache_validation(self, filepaths, transforms, base_root, data_type):
         current_slice_number = 0  # This is required to keep track of where a volume is in the dataset
+        #we are only taking 30% to cache
+        filepaths = shuffle(filepaths, random_state = 42);
+        self.logger.info(f'total file path for validation {len(filepaths)}, took 30%: {int(len(filepaths)*0.3)}')
+        filepaths = filepaths[:int(len(filepaths)*0.3)];
+        
         for idx, filepath in enumerate(filepaths):
             filename = os.path.basename(filepath);
             filename = filename[:filename.rfind('.')];
@@ -177,12 +184,12 @@ class H5SliceData(Dataset):
                     target = np.memmap(os.path.join(base_root,f"cache_{data_type}", f'{filename}_target.dat'), mode='w+',dtype=np.float32, shape = (kspace_shape[0], kspace_shape[2], kspace_shape[3]));
 
                     with open(os.path.join(base_root,f"cache_{data_type}", f'{filename}_cache.meta'), 'wb') as meta_file:
-                        data_to_wrtie = dict();
-                        data_to_wrtie['shape'] = kspace_shape;
-                        data_to_wrtie['file_path'] = filepath;
+                        data_to_write = dict();
+                        data_to_write['shape'] = kspace_shape;
+                        data_to_write['file_path'] = filepath;
                         if self.pass_attrs:
                             dict_attrs = dict(data.attrs)
-                            data_to_wrtie['attrs'] = dict_attrs;
+                            data_to_write['attrs'] = dict_attrs;
 
 
                         if self.extra_keys:
@@ -190,14 +197,14 @@ class H5SliceData(Dataset):
                                 if extra_key == "attrs":
                                     raise ValueError("attrs need to be passed by setting `pass_attrs = True`.")
                                 if extra_key in data.keys():
-                                    data_to_wrtie[extra_key] = data[extra_key][()]
+                                    data_to_write[extra_key] = data[extra_key][()]
                         
-                        data_to_wrtie.update(parse_fastmri_header(data_to_wrtie, "ismrmrd_header"))
-                        data_to_wrtie['masked_kspace_shape'] = masked_kspace.shape;
-                        data_to_wrtie['sensitivity_map_shape'] = sensitivity_map.shape;
-                        data_to_wrtie['padding_shape'] = padding.shape;
-                        data_to_wrtie['sampling_mask_shape'] = sampling_mask.shape;
-                        data_to_wrtie['target_shape'] = target.shape;
+                        data_to_write.update(parse_fastmri_header(data_to_write, "ismrmrd_header"))
+                        data_to_write['masked_kspace_shape'] = masked_kspace.shape;
+                        data_to_write['sensitivity_map_shape'] = sensitivity_map.shape;
+                        data_to_write['padding_shape'] = padding.shape;
+                        data_to_write['sampling_mask_shape'] = sampling_mask.shape;
+                        data_to_write['target_shape'] = target.shape;
                         
                         for slice_no in range(num_slices):
                             
@@ -219,7 +226,7 @@ class H5SliceData(Dataset):
                                 # Some images have strange behavior, e.g. FLAIR 203.
                                 image_shape = sample["kspace"].shape
                                 if image_shape[-1] < sample["reconstruction_size"][-2]:  # reconstruction size is (x, y, z)
-                                    sample["reconstruction_size"] = (image_shape[-1], image_shape[-1], 1)
+                                    data_to_write["reconstruction_size"] = (image_shape[-1], image_shape[-1], 1)
                                 
                                 sample["kspace"] = explicit_zero_padding(
                                     sample["kspace"], sample["padding_left"], sample["padding_right"]
@@ -231,9 +238,9 @@ class H5SliceData(Dataset):
                                 sensitivity_map[slice_no] = np.array(sample['sensitivity_map']);
                                 masked_kspace[slice_no] = np.array(sample['masked_kspace']);
                                 target[slice_no] = np.array(sample['target']);
-                                data_to_wrtie[slice_no] = [sample['scaling_factor'], sample['scaling_diff']]
+                                data_to_write[slice_no] = [sample['scaling_factor'], sample['scaling_diff']]
 
-                        pickle.dump(data_to_wrtie, meta_file);
+                        pickle.dump(data_to_write, meta_file);
                     masked_kspace.flush()
                     sensitivity_map.flush() 
                     padding.flush()
@@ -276,7 +283,7 @@ class H5SliceData(Dataset):
             self.index_to_file_path.extend(t);
     
     def cache_training(self, filepaths, base_root, data_type):
-        current_slice_number = 0  # This is required to keep track of where a volume is in the dataset
+        current_slice_number = 0
         for idx, filepath in enumerate(filepaths):
             filename = os.path.basename(filepath);
             filename = filename[:filename.rfind('.')];
@@ -286,33 +293,30 @@ class H5SliceData(Dataset):
             try:
                 with h5py.File(filepath, "r") as data:
                     kspace_shape = data["kspace"].shape  # pylint: disable = E1101
-                    kspace = np.array(data["kspace"])
-                    kspace_shape = kspace.shape
                     num_slices = kspace_shape[0]
-                    with open(os.path.join(base_root,f"cache_{data_type}", f'{filename}_cache.meta'), 'wb') as meta_file:
-                        data_to_wrtie = dict();
-                        data_to_wrtie['shape'] = kspace_shape;
-                        data_to_wrtie['file_path'] = filepath;
-                        if self.pass_attrs:
-                            dict_attrs = dict(data.attrs)
-                            data_to_wrtie['attrs'] = dict_attrs;
-                        if self.extra_keys:
-                            for extra_key in self.extra_keys:
-                                if extra_key == "attrs":
-                                    raise ValueError("attrs need to be passed by setting `pass_attrs = True`.")
-                                if extra_key in data.keys():
-                                    data_to_wrtie[extra_key] = data[extra_key][()]
-                        prased_data = parse_fastmri_header(data_to_wrtie, "ismrmrd_header")
-                        pickle.dump(data_to_wrtie, meta_file);
-                    
-                    for n in range(num_slices):
-                        kspace[n,...] = explicit_zero_padding(kspace[n,...], prased_data["padding_left"], prased_data["padding_right"])
 
-                    sample_memap = np.memmap(os.path.join(base_root,f"cache_{data_type}", f'{filename}_cache.dat'), mode='w+', dtype=np.complex64, shape=kspace.shape);
-                    sample_memap[:] = kspace[:];
-                    sample_memap.flush();
-                    
-                    self.data.append([os.path.join(base_root,f"cache_{data_type}", f'{filename}_cache.dat'), os.path.join(base_root,f"cache_{data_type}", f'{filename}_cache.meta')]);
+                    for slice_no in range(num_slices):
+                        if os.path.exists(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch')) is True:
+                            self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'));
+                            continue;
+                        
+                        kspace, extra_data = self.get_slice_data(data, filepath, slice_no, pass_attrs=self.pass_attrs, extra_keys=self.extra_keys);
+
+                        sample = {"kspace": kspace, "filename": str(filepath), "slice_no": slice_no}
+
+                        # If the sensitivity maps exist, load these
+                        if self.sensitivity_maps:
+                            sensitivity_map, _ = self.get_slice_data(self.sensitivity_maps / filepath.name, slice_no)
+                            sample["sensitivity_map"] = sensitivity_map
+
+                        sample.update(extra_data)
+
+                        with open(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'), 'wb') as f:
+                            pickle.dump(sample, f);
+                        self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'));
+
+                #self.verify_extra_h5_integrity(filepath, kspace_shape, extra_h5s=extra_h5s)  # pylint: disable = E1101
+
             except OSError as exc:
                 self.logger.warning("%s failed with OSError: %s. Skipping...", filepath, exc)
                 continue
@@ -332,15 +336,9 @@ class H5SliceData(Dataset):
             self.volume_indices[filepath] = range(current_slice_number, current_slice_number + num_slices)
 
             current_slice_number += num_slices
-
-        self.index_to_file_path = [];
-        for v in self.volume_indices:
-            t = [v for _ in range(self.volume_indices[v].start, self.volume_indices[v].stop)];
-            self.index_to_file_path.extend(t);
-
+          
     def parse_filenames_data(self, dataset_description, filepaths, transforms, extra_h5s=None, filter_slice=None, data_type = 'train'):
         #check if we have already cached this dataset
-        
         if os.path.exists(f'{data_type}_cache_{dataset_description}.ch') is not False:
             with open(f'{data_type}_cache_{dataset_description}.ch', 'rb') as f:
                 dataset_cache = pickle.load(f);
@@ -360,11 +358,12 @@ class H5SliceData(Dataset):
 
             if data_type == 'val':
                 self.cache_validation(filepaths, transforms, base_root, data_type);
+                #done loading files, cache it
+                dataset_cache[dataset_description] = [self.data, self.volume_indices, self.index_to_file_path]
             else:
                 self.cache_training(filepaths, base_root, data_type)
-            
-            #done loading files, cache it
-            dataset_cache[dataset_description] = [self.data, self.volume_indices, self.index_to_file_path]
+                #done loading files, cache it
+                dataset_cache[dataset_description] = [self.data, self.volume_indices]
         
             with open(f'{data_type}_cache_{dataset_description}.ch', 'wb') as f:
                 pickle.dump(dataset_cache, f);
@@ -372,7 +371,10 @@ class H5SliceData(Dataset):
         else:
             self.logger.info(f'{dataset_description} found in cache, loading from cache...')
             
-            self.data, self.volume_indices, self.index_to_file_path = dataset_cache[dataset_description];
+            if self.data_type == 'val':
+                self.data, self.volume_indices, self.index_to_file_path = dataset_cache[dataset_description];
+            else:
+                self.data, self.volume_indices = dataset_cache[dataset_description];
             
     
         if self.data_type == 'val':
@@ -388,13 +390,6 @@ class H5SliceData(Dataset):
                                                np.memmap(d[3], mode='r', dtype=bool, shape=meta_data['sampling_mask_shape']),
                                                np.memmap(d[4], mode='r', dtype=np.float32, shape=meta_data['target_shape']),
                                                meta_data];
-        else:
-            for d in self.data:
-                with open(d[1], 'rb') as meta:
-                    meta_data = pickle.load(meta);
-                    filepath = meta_data['file_path'];
-                    meta_data.pop('file_path');
-                self.loaded_files[filepath] = [np.memmap(d[0], mode='r', dtype=np.complex64, shape=meta_data['shape']), meta_data];
     
     @staticmethod
     def verify_extra_h5_integrity(image_fn, _, extra_h5s):
@@ -453,13 +448,8 @@ class H5SliceData(Dataset):
                       "padding_right": padding_right}
 
         else:
-            import time;
-            t0 = time.time();
-            slice_no = idx - self.volume_indices[self.index_to_file_path[idx]].start
-            kspace = self.loaded_files[self.index_to_file_path[idx]][0][slice_no];
-            sample = {"kspace": kspace, "filename": str(self.index_to_file_path[idx]), "slice_no": slice_no}
-            sample.update(self.loaded_files[self.index_to_file_path[idx]][1])
-            self.logger.info(f'loading took: {time.time() - t0}');
+            with open(self.data[idx], 'rb') as f:
+                sample = pickle.load(f);
        # print(f'loading {self.data[idx]} took : {time.time() - t0}');
         #self.logger.info(f'loading {self.data[idx]} took : {time.time() - t0} size: {os.path.getsize(self.data[idx]) / (1024 * 1024)}')
         # filename, slice_no = self.data[idx]

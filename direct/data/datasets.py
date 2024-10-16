@@ -331,10 +331,10 @@ class FastMRIDataset(H5SliceData):
             sample["sampling_mask"] = self.__broadcast_mask(kspace_shape, sampling_mask)
             sample["acs_mask"] = self.__broadcast_mask(kspace_shape, self.__get_acs_from_fastmri_mask(sampling_mask))
 
-        # Explicitly zero-out the outer parts of kspace which are padded
-        # sample["kspace"] = explicit_zero_padding(
-        #     sample["kspace"], sample["padding_left"], sample["padding_right"]
-        # )
+        #Explicitly zero-out the outer parts of kspace which are padded
+        sample["kspace"] = explicit_zero_padding(
+            sample["kspace"], sample["padding_left"], sample["padding_right"]
+        )
 
         if self.transform:
             sample = self.transform(sample)
