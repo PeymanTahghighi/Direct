@@ -766,7 +766,7 @@ class MRIModelEngine(Engine):
 
         # Let us inspect this data
         all_filenames = list(data_loader.dataset.volume_indices.keys())  # type: ignore
-        num_for_this_process = len(list(data_loader.batch_sampler.sampler.volume_indices.keys()))  # type: ignore
+        num_for_this_process = len(list(data_loader.dataset.volume_indices.keys()))  # type: ignore
         self.logger.info(
             "Reconstructing a total of %s volumes. This process has %s volumes (world size: %s).",
             len(all_filenames),
@@ -786,6 +786,7 @@ class MRIModelEngine(Engine):
         # contains data from one volume.
         time_start = time.time()
         loss_dict_list = []
+
         # TODO: Use iter_idx to keep track of volume
         for _, data in enumerate(data_loader):
 
@@ -808,6 +809,7 @@ class MRIModelEngine(Engine):
             )
 
             # Compute output
+
             iteration_output = self._do_iteration(data, loss_fns=loss_fns, regularizer_fns=regularizer_fns)
 
 
@@ -822,7 +824,7 @@ class MRIModelEngine(Engine):
                 complex_axis=self._complex_dim,
             )
             
-
+            
             if add_target:
                 target_abs = _process_output(
                     data["target"],
@@ -832,7 +834,7 @@ class MRIModelEngine(Engine):
                 )
 
             if curr_volume is None:
-                volume_size = len(data_loader.batch_sampler.sampler.volume_indices[filename])  # type: ignore
+                volume_size = len(data_loader.dataset.volume_indices[filename])  # type: ignore
                 curr_volume = torch.zeros(*(volume_size, *output_abs.shape[1:]), dtype=output_abs.dtype)
                 loss_dict_list.append(loss_dict)
                 if add_target:
@@ -847,7 +849,7 @@ class MRIModelEngine(Engine):
             # Check if we had the last batch
             if slice_counter == volume_size:
                 filenames_seen += 1
-
+                
                 self.logger.info(
                     "%i of %i volumes reconstructed: %s (shape = %s) in %.3fs.",
                     filenames_seen,

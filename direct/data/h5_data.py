@@ -372,6 +372,7 @@ class H5SliceData(Dataset):
             
             if self.data_type == 'val':
                 self.data, self.volume_indices, self.index_to_file_path = dataset_cache[dataset_description];
+                
             else:
                 self.data, self.volume_indices = dataset_cache[dataset_description];
             
@@ -389,7 +390,10 @@ class H5SliceData(Dataset):
                                                np.memmap(d[3], mode='r', dtype=bool, shape=meta_data['sampling_mask_shape']),
                                                np.memmap(d[4], mode='r', dtype=np.float32, shape=meta_data['target_shape']),
                                                meta_data];
-    
+
+            self.data_size = 0;
+            for k in self.volume_indices:
+                self.data_size += self.volume_indices[k].stop - self.volume_indices[k].start;
     @staticmethod
     def verify_extra_h5_integrity(image_fn, _, extra_h5s):
         # TODO: This function is not doing much right now, and can be removed or should be refactored to something else
@@ -412,7 +416,10 @@ class H5SliceData(Dataset):
             #                      f"Got {shape} and {image_shape}")
 
     def __len__(self):
-        return len(self.data)
+        if self.data_type == 'train':
+            return len(self.data)
+        else:
+            return self.data_size
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         if self.data_type == 'val':

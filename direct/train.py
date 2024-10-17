@@ -304,8 +304,6 @@ def setup_train(
         else:
             initialization_checkpoint = env.cfg.training.model_checkpoint
 
-    num_workers = env.cfg.training['num_workers'];
-    
     env.engine.train(
         optimizer,
         lr_scheduler,
@@ -316,9 +314,12 @@ def setup_train(
         resume=resume,
         initialization=initialization_checkpoint,
         start_with_validation=force_validation,
-        num_workers=num_workers,
+        train_num_workers=env.cfg.training.num_workers,
+        valid_num_workers=env.cfg.validation.num_workers,
         pin_memory = env.cfg.training.pin_memory,
-        prefetch_factor = env.cfg.training.prefetch_factor
+        train_prefetch_factor = env.cfg.training.prefetch_factor,
+        valid_prefetch_factor = env.cfg.validation.prefetch_factor,
+        full_validation_interval = env.cfg.validation.full_validation_interval
     )
 
 

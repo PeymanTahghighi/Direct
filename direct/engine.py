@@ -119,6 +119,7 @@ class Engine(ABC, DataDimensionality):
         self.__lr_scheduler = None
         self._scaler = GradScaler(enabled=self.mixed_precision)
         self.__writers = None
+        self.__validation_counter = 1;
         self.__bind_sigint_signal()
 
         DataDimensionality.__init__(self)
@@ -249,11 +250,15 @@ class Engine(ABC, DataDimensionality):
         start_iter: int,
         validation_datasets: Optional[List] = None,
         experiment_directory: Optional[pathlib.Path] = None,
-        num_workers: int = 6,
+        train_num_workers: int = 6,
+        valid_num_workers: int = 0,
         start_with_validation: bool = False,
         validation_set_size: float = 0.5,
         pin_memory: bool = False,
-        prefetch_factor: int = 1
+        train_prefetch_factor: int = 1,
+        valid_prefetch_factor: int = 0,
+        full_validation_interval : int = 5
+
     ):
         self.logger.info(f"Local rank: {communication.get_local_rank()}.")
         self.models_training_mode()
@@ -287,9 +292,9 @@ class Engine(ABC, DataDimensionality):
         data_loader = self.build_loader(
             training_data,
             batch_sampler=training_sampler,
-            num_workers=num_workers,
+            num_workers=train_num_workers,
             pin_memory = pin_memory,
-            prefetch_factor = prefetch_factor
+            prefetch_factor = train_prefetch_factor
         )
 
         # Convenient shorthand
@@ -298,8 +303,10 @@ class Engine(ABC, DataDimensionality):
             validation_datasets,
             None,
             experiment_directory,
-            num_workers=num_workers,
-            validation_set_size = validation_set_size
+            num_workers=valid_num_workers,
+            prefetch_factor=valid_prefetch_factor,
+            validation_set_size = validation_set_size,
+            full_validation_interval = full_validation_interval
         )
 
         total_iter = self.cfg.training.num_iterations  # type: ignore
@@ -424,29 +431,32 @@ class Engine(ABC, DataDimensionality):
         experiment_directory,
         iter_idx,
         num_workers: int = 6,
-        validation_set_size: float = 0.5
+        prefetch_factor: int = 0,
+        validation_set_size: float = 0.5,
+        full_validation_interval:int = 5
     ):
         if not validation_datasets:
             return
 
         storage = get_event_storage()
+        full = False;
+        if self.__validation_counter % full_validation_interval == 0:
+            self.logger.info(f'performing full validation...')
+            full = True;
+        else:
+            self.logger.info('performing validation only on FastMRI Brain dataset...');
 
         for curr_validation_dataset in validation_datasets:
-            import time;
-            t0 = time.time();
+
             curr_dataset_name = curr_validation_dataset.text_description
+            if full is False and curr_dataset_name != 'FastMRI-brain':
+                continue;
+            
             self.logger.info("Evaluating: %s...", curr_dataset_name)
             self.logger.info("Building dataloader for dataset: %s.", curr_dataset_name)
 
-            curr_batch_sampler = self.build_batch_sampler(
-                curr_validation_dataset,
-                batch_size=self.cfg.validation.batch_size,  # type: ignore
-                sampler_type="sequential",
-                limit_number_of_volumes=None,
-            )
             curr_data_loader = self.build_loader(
                 curr_validation_dataset,
-                batch_sampler=curr_batch_sampler,
                 num_workers=num_workers,
             )
 
@@ -459,10 +469,6 @@ class Engine(ABC, DataDimensionality):
                 curr_data_loader,
                 loss_fns,
             )
-
-            print(f'total time for {curr_dataset_name}: {time.time() - t0}');
-
-
             if experiment_directory:
                 json_output_fn = experiment_directory / f"metrics_val_{curr_dataset_name}_{iter_idx}.json"
                 json_output_fn.parent.mkdir(exist_ok=True, parents=True)  # A / in the filename can create a folder
@@ -477,7 +483,6 @@ class Engine(ABC, DataDimensionality):
             curr_metric_dict = reduce_list_of_dicts(list(curr_metrics_per_case.values()), mode="average")
             self.logger.info(f"Results for {curr_dataset_name}: PSNR: {curr_metric_dict['fastmri_psnr_metric'].item()} \t SSIM: {curr_metric_dict['fastmri_ssim_metric'].item()}");
 
-            t0 = time.time();
             key_prefix = "val/" if not curr_dataset_name else f"val/{curr_dataset_name}/"
             loss_reduced = sum(curr_loss_dict.values())
             storage.add_scalars(
@@ -499,9 +504,10 @@ class Engine(ABC, DataDimensionality):
                 scale_each=True,
             )
             storage.add_image(f"{key_prefix}target", visualize_target)
-            print(f'adding visualizations took: {time.time() - t0}')
 
             self.logger.info("Done evaluation of %s at iteration %s.", str(curr_dataset_name), str(iter_idx))
+
+        self.__validation_counter +=1 ;
         self.model.train()
 
 
@@ -546,10 +552,13 @@ class Engine(ABC, DataDimensionality):
         resume: bool = False,
         start_with_validation: bool = False,
         initialization: Optional[PathOrString] = None,
-        num_workers: int = 6,
+        train_num_workers: int = 6,
+        valid_num_workers: int = 0,
         validation_set_size: float = 0.5,
         pin_memory: bool = False,
-        prefetch_factor: int = 1
+        train_prefetch_factor: int = 1,
+        valid_prefetch_factor: int = 0,
+        full_validation_interval : int = 5
     ) -> None:
         self.logger.info("Starting training.")
         # Can consider not to make this a member of self, but that requires that optimizer is passed to
@@ -677,11 +686,14 @@ class Engine(ABC, DataDimensionality):
                 start_iter,
                 validation_datasets,
                 experiment_directory=experiment_directory,
-                num_workers=num_workers,
+                train_num_workers=train_num_workers,
+                valid_num_workers=valid_num_workers,
                 start_with_validation=start_with_validation,
                 validation_set_size = validation_set_size,
                 pin_memory = pin_memory,
-                prefetch_factor = prefetch_factor
+                train_prefetch_factor = train_prefetch_factor,
+                valid_prefetch_factor = valid_prefetch_factor,
+                full_validation_interval = full_validation_interval
             )
 
         self.logger.info("Training completed.")

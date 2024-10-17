@@ -90,6 +90,9 @@ class TrainingConfig(BaseConfig):
 class ValidationConfig(BaseConfig):
     datasets: List[Any] = field(default_factory=lambda: [DatasetConfig()])
     batch_size: int = 8
+    num_workers: int = 0;
+    prefetch_factor: int = 0;
+    full_validation_interval : int = 5; 
     metrics: List[str] = field(default_factory=lambda: [])
     regularizers: List[str] = field(default_factory=lambda: [])
     crop: Optional[str] = "training"
