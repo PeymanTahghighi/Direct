@@ -7,10 +7,13 @@ This is the file which builds the main parser.
 
 import argparse
 from torch.utils.tensorboard import summary
-
+import pathlib
+import platform
 
 def main():
 
+    plt = platform.system()
+    if plt == 'Windows': pathlib.PosixPath = pathlib.WindowsPath
     """Console script for direct."""
     # From https://stackoverflow.com/questions/17073688/how-to-use-argparse-subparsers-correctly
     root_parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
