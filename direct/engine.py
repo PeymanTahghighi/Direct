@@ -407,7 +407,7 @@ class Engine(ABC, DataDimensionality):
                 iter_idx + 1
             ) == total_iter:
                 self.logger.info(f"Checkpointing at iteration {iter_idx}.")
-                self.checkpointer.save(iter_idx)
+                self.checkpointer.save(iter_idx, get_event_storage())
 
     def write_to_logs_at_interval(self, iter_idx, total_iter):
         if iter_idx >= 5:
@@ -681,6 +681,13 @@ class Engine(ABC, DataDimensionality):
         )
 
         with EventStorage(start_iter):
+            if resume and checkpoint:
+                storage = get_event_storage();
+                if 'history' in checkpoint:
+                    storage.load_history(checkpoint['history']);
+                    self.logger.info(f'histories loaded...')
+                else:
+                    self.logger.info(f'histories not found in checkpoint, skipping...')
             self.training_loop(
                 training_datasets,
                 start_iter,

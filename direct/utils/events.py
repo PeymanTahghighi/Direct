@@ -212,7 +212,7 @@ class CommonMetricPrinter(EventWriter):
 
         metrics_and_losses_string = "  ".join(
             [
-                f"{k}: {v.median(20):.6f}"
+                f"{k}: {v.median(20) if 'val' not in k else v.max()}"
                 for k, v in storage.histories().items()
                 if ("loss" in k or "metric" in k or "reg" in k)
             ]
@@ -348,7 +348,7 @@ class EventStorage:
         """
         result = {}
         for k, v in self._latest_scalars.items():
-            result[k] = self._history[k].median(window_size) if self._smoothing_hints[k] else v
+            result[k] = self._history[k].median(window_size) if self._smoothing_hints[k] else self._history[k].max() if 'val' in k else v
         return result
 
     def smoothing_hints(self):
@@ -368,6 +368,13 @@ class EventStorage:
         self._iter += 1
         # TODO: This clears validation metrics.
         # self._latest_scalars = {}
+    
+    def load_history(self, histories):
+        """Loads history from checkpoint
+        """
+        self._history = histories[0];
+        self._latest_scalars = histories[1];
+        self._smoothing_hints = histories[2];
 
     @property
     def vis_data(self):
@@ -436,6 +443,10 @@ class HistoryBuffer:
     def median(self, window_size: int) -> float:
         """Return the median of the latest `window_size` values in the buffer."""
         return np.median([x[0] for x in self._data[-window_size:]])
+    
+    def max(self) -> float:
+        """Return the maximum of the buffer."""
+        return np.max([x[0] for x in self._data])
 
     def avg(self, window_size: int) -> float:
         """Return the mean of the latest `window_size` values in the buffer."""

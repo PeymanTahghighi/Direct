@@ -171,7 +171,7 @@ class Checkpointer:
     def load_models_from_file(self, checkpoint_path: PathOrString) -> None:
         _ = self.load_from_path(checkpoint_path, only_models=True)
 
-    def save(self, iteration: int, **kwargs: Dict[str, str]) -> None:
+    def save(self, iteration: int, storage, **kwargs: Dict[str, str]) -> None:
         # For instance useful to only have the rank 0 process write to disk.
         if not self.save_to_disk:
             return
@@ -189,6 +189,7 @@ class Checkpointer:
                 self.logger.warning("Value of key %s has no state_dict.", key)
 
         data.update(kwargs)
+        data.update({'history': [storage.histories(), storage.latest(), storage.smoothing_hints()]})
 
         checkpoint_path = self.save_directory / f"model_{iteration}.pt"
         self.logger.info("Saving checkpoint to: %s.", checkpoint_path)
