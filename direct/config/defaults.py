@@ -92,7 +92,7 @@ class ValidationConfig(BaseConfig):
     batch_size: int = 8
     num_workers: int = 0;
     prefetch_factor: int = 0;
-    full_validation_interval : int = 5; 
+    full_validation_interval : int = 20; 
     metrics: List[str] = field(default_factory=lambda: [])
     regularizers: List[str] = field(default_factory=lambda: [])
     crop: Optional[str] = "training"
