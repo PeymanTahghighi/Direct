@@ -21,6 +21,7 @@ from torch.nn.parallel import DistributedDataParallel
 from direct.environment import DIRECT_MODEL_DOWNLOAD_DIR
 from direct.types import HasStateDict, PathOrString
 from direct.utils.io import check_is_valid_url, download_url
+import pickle
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +198,7 @@ class Checkpointer:
         data["__datetime__"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         with open(str(checkpoint_path), "wb") as f:
-            torch.save(data, f)
+            pickle.dump(data, f)
 
         # noinspection PyTypeChecker
         with open(self.save_directory / "last_model.txt", "w", encoding="utf-8") as f:  # type: ignore
@@ -227,7 +228,8 @@ class Checkpointer:
         self.logger.info("Loaded checkpoint path: %s.", checkpoint_path)
 
         try:
-            checkpoint = torch.load(checkpoint_path, map_location=torch.device("cpu"))
+            with open(checkpoint_path, 'rb') as f:
+                checkpoint = pickle.load(f)
 
         except UnpicklingError as exc:
             self.logger.exception("Tried to load %s, but was unable to unpickle: %s.", checkpoint_path, exc)
