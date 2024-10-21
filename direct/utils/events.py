@@ -92,7 +92,7 @@ class JSONWriter(EventWriter):
         ...
     """
 
-    def __init__(self, json_file: Union[Path, str], window_size: int = 2):
+    def __init__(self, json_file: Union[Path, str], window_size: int = 1000):
         """
 
         Parameters
@@ -126,7 +126,7 @@ class JSONWriter(EventWriter):
 class TensorboardWriter(EventWriter):
     """Write all scalars to a tensorboard file."""
 
-    def __init__(self, log_dir: Union[Path, str], window_size: int = 20, **kwargs):
+    def __init__(self, log_dir: Union[Path, str], window_size: int = 1000, **kwargs):
         """
         Parameters
         ----------
@@ -173,6 +173,7 @@ class CommonMetricPrinter(EventWriter):
         self.logger = logging.getLogger(type(self).__name__)
         self._max_iter = max_iter
         self._last_write = None
+        self.__window_size = 1000;
 
     def write(self):
         storage = get_event_storage()
@@ -212,7 +213,7 @@ class CommonMetricPrinter(EventWriter):
 
         metrics_and_losses_string = "  ".join(
             [
-                f"{k}: {v.median(20) if 'val' not in k else v.max()}"
+                f"{k}: {v.median(self.__window_size) if 'val' not in k else v.max()}"
                 for k, v in storage.histories().items()
                 if ("loss" in k or "metric" in k or "reg" in k)
             ]
@@ -331,7 +332,9 @@ class EventStorage:
         Returns:
             dict[name -> HistoryBuffer]: the HistoryBuffer for all scalars
         """
+
         return self._history
+        
 
     def latest(self):
         """
@@ -422,7 +425,8 @@ class HistoryBuffer:
         self._count: int = 0
         self._global_avg: float = 0
 
-    def update(self, value: float, iteration: Optional[float] = None) -> None:
+
+    def update(self, value: float, iteration: Optional[float] = None, window_size: int = 1000) -> None:
         """Add a new scalar value produced at certain iteration.
 
         If the length of the buffer exceeds self._max_length, the oldest element will be removed from the buffer.
@@ -432,6 +436,10 @@ class HistoryBuffer:
         if len(self._data) == self._max_length:
             self._data.pop(0)
         self._data.append((value, iteration))
+
+        if len(self._data) > window_size:
+            #only keep last self._window_size data
+            self._data = self._data[-window_size:]
 
         self._count += 1
         self._global_avg += (value - self._global_avg) / self._count
