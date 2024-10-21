@@ -113,7 +113,8 @@ def build_training_datasets_from_environment(
     initial_kspaces: Optional[Union[List[pathlib.Path], None]] = None,
     pass_text_description: bool = True,
     pass_dictionaries: Optional[Dict[str, Dict]] = None,
-    data_type: str = 'train'
+    data_type: str = 'train',
+    validation_data_type: str = 'normal'
 ):
     datasets = []
     for idx, dataset_config in enumerate(datasets_config):
@@ -146,6 +147,7 @@ def build_training_datasets_from_environment(
             dataset_args.update({"pass_dictionaries": pass_dictionaries})
         dataset_args.update({'data_type': data_type});
         dataset_args.update({'data_cache_tranform': train_transforms if data_type=='val' else None});
+        dataset_args.update({'validation_data_type': validation_data_type});
         dataset = build_dataset_from_input(**dataset_args)
 
         logger.debug("Transforms %s / %s :\n%s", idx + 1, len(datasets_config), train_transforms)
@@ -168,6 +170,8 @@ def setup_train(
     base_directory: pathlib.Path,
     cfg_filename: PathOrString,
     force_validation: bool,
+    validation_only: bool,
+    validation_data_type: str,
     initialization_checkpoint: PathOrString,
     initial_images: Optional[Union[List[pathlib.Path], None]],
     initial_kspace: Optional[Union[List[pathlib.Path], None]],
@@ -240,7 +244,7 @@ def setup_train(
             validation_dataset_args.update({"initial_images": initial_images[1]})
         if initial_kspace is not None:
             validation_dataset_args.update({"initial_kspaces": initial_kspace[1]})
-        validation_dataset_args.update({'data_type': 'val'});
+        validation_dataset_args.update({'data_type': 'val', 'validation_data_type': validation_data_type});
         # Build validation datasets
         validation_data = build_training_datasets_from_environment(**validation_dataset_args)
     else:
@@ -314,6 +318,7 @@ def setup_train(
         resume=resume,
         initialization=initialization_checkpoint,
         start_with_validation=force_validation,
+        validation_only=validation_only,
         train_num_workers=env.cfg.training.num_workers,
         valid_num_workers=env.cfg.validation.num_workers,
         pin_memory = env.cfg.training.pin_memory,
@@ -354,6 +359,8 @@ def train_from_argparse(args: argparse.Namespace):
         args.experiment_dir,
         args.cfg_file,
         args.force_validation,
+        args.validation_only,
+        args.validation_data_type,
         args.initialization_checkpoint,
         args.initialization_images,
         args.initialization_kspace,

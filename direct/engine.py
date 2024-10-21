@@ -253,6 +253,7 @@ class Engine(ABC, DataDimensionality):
         train_num_workers: int = 6,
         valid_num_workers: int = 0,
         start_with_validation: bool = False,
+        validation_only: bool = False,
         validation_set_size: float = 0.5,
         pin_memory: bool = False,
         train_prefetch_factor: int = 1,
@@ -306,11 +307,16 @@ class Engine(ABC, DataDimensionality):
             num_workers=valid_num_workers,
             prefetch_factor=valid_prefetch_factor,
             validation_set_size = validation_set_size,
-            full_validation_interval = full_validation_interval
+            full_validation_interval = full_validation_interval,
         )
 
         total_iter = self.cfg.training.num_iterations  # type: ignore
         fail_counter = 0
+
+        if validation_only:
+            self.logger.info(f"Doing one round of validation ane exiting...")
+            validation_func(start_iter)
+            sys.exit(-1)
         for data, iter_idx in zip(data_loader, range(start_iter, total_iter)):
             if iter_idx == 0:
                 self.log_first_training_example_and_model(data)
@@ -433,7 +439,7 @@ class Engine(ABC, DataDimensionality):
         num_workers: int = 6,
         prefetch_factor: int = 0,
         validation_set_size: float = 0.5,
-        full_validation_interval:int = 5
+        full_validation_interval:int = 5,
     ):
         if not validation_datasets:
             return
@@ -458,6 +464,7 @@ class Engine(ABC, DataDimensionality):
             curr_data_loader = self.build_loader(
                 curr_validation_dataset,
                 num_workers=num_workers,
+                prefetch_factor=prefetch_factor
             )
 
             (
@@ -551,6 +558,7 @@ class Engine(ABC, DataDimensionality):
         validation_datasets: Optional[Dataset] = None,
         resume: bool = False,
         start_with_validation: bool = False,
+        validation_only: bool = False,
         initialization: Optional[PathOrString] = None,
         train_num_workers: int = 6,
         valid_num_workers: int = 0,
@@ -696,6 +704,7 @@ class Engine(ABC, DataDimensionality):
                 train_num_workers=train_num_workers,
                 valid_num_workers=valid_num_workers,
                 start_with_validation=start_with_validation,
+                validation_only = validation_only,
                 validation_set_size = validation_set_size,
                 pin_memory = pin_memory,
                 train_prefetch_factor = train_prefetch_factor,

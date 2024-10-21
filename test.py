@@ -34,7 +34,7 @@ def main():
     # Data related comments.
     register_upload_subcommand(root_subparsers)
 
-    args = root_parser.parse_args(['train','--cfg', 'projects/cvpr2022_recurrentvarnet/fastmri/AXT1_brain/configs/base_varnet.yaml', '--resume'])
+    args = root_parser.parse_args(['train','--cfg', 'projects/cvpr2022_recurrentvarnet/fastmri/AXT1_brain/configs/base_varnet.yaml', '--validation-only', '--validation-data-type', 'equispaced'])
     print(args);
     args.subcommand(args)
 

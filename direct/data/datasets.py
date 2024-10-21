@@ -257,6 +257,7 @@ class FastMRIDataset(H5SliceData):
         noise_data: Optional[dict] = None,
         pass_h5s: Optional[dict] = None,
         data_type = 'train',
+        validation_data_type = 'normal',
         **kwargs,
     ) -> None:
         # TODO: Clean up Dataset class such that only **kwargs need to get parsed.
@@ -279,7 +280,8 @@ class FastMRIDataset(H5SliceData):
             pass_h5s=pass_h5s,
             pass_dictionaries=kwargs.get("pass_dictionaries", None),
             data_type=data_type,
-            data_cache_tranform = data_cache_tranform
+            data_cache_tranform = data_cache_tranform,
+            validation_data_type = validation_data_type
         )
         if self.sensitivity_maps is not None:
             raise NotImplementedError(
@@ -1298,6 +1300,7 @@ def build_dataset(
     transforms: Optional[Callable] = None,
     data_cache_tranform: Optional[Callable] = None,
     data_type = 'train',
+    validation_data_type = 'normal',
     **kwargs: dict[str, Any],
 ) -> Dataset:
     """Builds dataset with name :class:`name + "Dataset"` from keyword arguments.
@@ -1337,7 +1340,7 @@ def build_dataset(
     logger.info("Building dataset for: %s", name)
     dataset_class: Callable = str_to_class("direct.data.datasets", name + "Dataset")
     logger.debug("Dataset class: %s", dataset_class)
-    dataset = dataset_class(transform=transforms, data_cache_tranform = data_cache_tranform, data_type = data_type, **kwargs)
+    dataset = dataset_class(transform=transforms, data_cache_tranform = data_cache_tranform, data_type = data_type, validation_data_type = validation_data_type, **kwargs)
 
     logger.debug("Dataset: %s", str(dataset))
 
@@ -1349,6 +1352,7 @@ def build_dataset_from_input(
     dataset_config: DictConfig,
     data_type = 'train',
     data_cache_tranform: Callable = None,
+    validation_data_type = 'normal',
     **kwargs: dict[str, Any],
 ) -> Dataset:
     """Builds dataset from input keyword arguments and configuration file.
@@ -1405,6 +1409,7 @@ def build_dataset_from_input(
         transforms=transforms,
         data_type = data_type,
         data_cache_tranform = data_cache_tranform,
+        validation_data_type = validation_data_type,
         **kwargs,
         **config_kwargs,
     )

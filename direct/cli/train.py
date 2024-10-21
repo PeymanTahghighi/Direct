@@ -68,6 +68,20 @@ def register_parser(parser: argparse._SubParsersAction):
         "each new run will start with a validation round.",
         action="store_true",
     )
+
+    train_parser.add_argument(
+        "--validation-only",
+        help="only does one validation round and exits.",
+        action="store_true",
+    )
+
+    train_parser.add_argument(
+        "--validation-data-type",
+        help="what type of validation data to use, it could be different accelerations or random or equispaced masking.",
+        type=str,
+        default='normal',
+    )
+
     train_parser.add_argument("--name", help="Run name.", required=False, type=str)
 
     train_parser.set_defaults(subcommand=train_from_argparse)
