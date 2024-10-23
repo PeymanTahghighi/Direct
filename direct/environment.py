@@ -381,15 +381,11 @@ def setup_common_environment(
                 logger.info(f"key {key} missing in config.")
                 continue
 
-            if key in ["training", "validation"]:
-                dataset_cfg_from_file = extract_names(cfg_from_external_source[key].datasets)
-                for idx, (dataset_name, dataset_config) in enumerate(dataset_cfg_from_file):
-                    cfg_from_file_new[key].datasets[idx] = dataset_config
-                    cfg[key].datasets.append(load_dataset_config(dataset_name))  # pylint: disable = E1136
-            else:
-                dataset_name, dataset_config = extract_names(cfg_from_external_source[key].dataset)
-                cfg_from_file_new[key].dataset = dataset_config
-                cfg[key].dataset = load_dataset_config(dataset_name)  # pylint: disable = E1136
+           
+            dataset_cfg_from_file = extract_names(cfg_from_external_source[key].datasets)
+            for idx, (dataset_name, dataset_config) in enumerate(dataset_cfg_from_file):
+                cfg_from_file_new[key].datasets[idx] = dataset_config
+                cfg[key].datasets.append(load_dataset_config(dataset_name))  # pylint: disable = E1136
 
         cfg[key] = OmegaConf.merge(cfg[key], cfg_from_file_new[key])  # pylint: disable = E1136, E1137
 

@@ -303,7 +303,7 @@ class FastMRIDataset(H5SliceData):
 
     def __getitem__(self, idx: int) -> dict[str, Any]:
         sample = super().__getitem__(idx)
-        if self.data_type == 'val':
+        if self.data_type == 'val' and self.validation_data_type != 'inference':
             return sample;
 
         if self.pass_attrs:

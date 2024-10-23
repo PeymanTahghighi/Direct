@@ -107,8 +107,8 @@ class H5SliceData(Dataset):
         self.loaded_files = dict();
         self.data_type = data_type;
         self.validation_data_type = validation_data_type
-        self.val_data_postfix = '';
-        self.set_val_data_postfix();
+        self.data_postfix = '';
+        self.set_data_postfix();
 
         # If filenames_filter and filenames_lists are given, it will load files in filenames_filter
         # and filenames_lists will be ignored.
@@ -161,11 +161,13 @@ class H5SliceData(Dataset):
         if self.text_description:
             self.logger.info("Dataset description: %s.", self.text_description)
             
-    def set_val_data_postfix(self):
+    def set_data_postfix(self):
         if self.validation_data_type == 'normal':
-            self.val_data_postfix='';
+            self.data_postfix='';
         elif self.validation_data_type == 'equispaced':
-            self.val_data_postfix = '_equispaced';
+            self.data_postfix = '_equispaced';
+        elif self.validation_data_type=='inference':
+            self.data_postfix ='_inference'
     
     def cache_validation(self, filepaths, transforms, base_root, data_type):
         current_slice_number = 0
@@ -225,7 +227,48 @@ class H5SliceData(Dataset):
             self.volume_indices[filepath] = range(current_slice_number, current_slice_number + num_slices)
 
             current_slice_number += num_slices
-    
+
+    def cache_validation_inference(self, filepaths, base_root, data_type):
+        current_slice_number = 0
+        for idx, filepath in enumerate(filepaths):
+            filename = os.path.basename(filepath);
+            filename = filename[:filename.rfind('.')];
+
+            if len(filepaths) < 5 or idx % (len(filepaths) // 5) == 0 or len(filepaths) == (idx + 1):
+                self.logger.info(f"Parsing: {(idx + 1) / len(filepaths) * 100:.2f}%.")
+            try:
+                with h5py.File(filepath, "r") as data:
+                    kspace_shape = data["kspace"].shape  # pylint: disable = E1101
+                    num_slices = kspace_shape[0]
+
+                    for slice_no in range(num_slices):
+                        if os.path.exists(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache_inference.ch')) is True:
+                            self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache_inference.ch'));
+                            continue;
+                        
+                        kspace, extra_data = self.get_slice_data(data, filepath, slice_no, pass_attrs=self.pass_attrs, extra_keys=self.extra_keys);
+
+                        sample = {"kspace": kspace, "filename": str(filepath), "slice_no": slice_no}
+
+                        # If the sensitivity maps exist, load these
+                        if self.sensitivity_maps:
+                            sensitivity_map, _ = self.get_slice_data(self.sensitivity_maps / filepath.name, slice_no)
+                            sample["sensitivity_map"] = sensitivity_map
+
+                        sample.update(extra_data)
+
+                        with open(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache_inference.ch'), 'wb') as f:
+                            pickle.dump(sample, f);
+                        self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache_inference.ch'));
+
+            except OSError as exc:
+                self.logger.warning("%s failed with OSError: %s. Skipping...", filepath, exc)
+                continue
+
+            self.volume_indices[filepath] = range(current_slice_number, current_slice_number + num_slices)
+
+            current_slice_number += num_slices
+
     def cache_training(self, filepaths, base_root, data_type):
         current_slice_number = 0
         for idx, filepath in enumerate(filepaths):
@@ -265,26 +308,14 @@ class H5SliceData(Dataset):
                 self.logger.warning("%s failed with OSError: %s. Skipping...", filepath, exc)
                 continue
 
-            
-            # if not filter_slice:
-            #     self.data += [(filepath, _) for _ in range(num_slices)]
-
-            # elif isinstance(filter_slice, slice):
-            #     admissible_indices = range(*filter_slice.indices(num_slices))
-            #     self.data += [(filepath, _) for _ in range(num_slices) if _ in admissible_indices]
-            #     num_slices = len(admissible_indices)
-
-            # else:
-            #     raise NotImplementedError
-
             self.volume_indices[filepath] = range(current_slice_number, current_slice_number + num_slices)
 
             current_slice_number += num_slices
           
     def parse_filenames_data(self, dataset_description, filepaths, transforms, extra_h5s=None, filter_slice=None, data_type = 'train'):
         #check if we have already cached this dataset
-        if os.path.exists(f"{data_type}_cache_{dataset_description}{self.val_data_postfix if data_type == 'val' else ''}.ch") is not False:
-            with open(f"{data_type}_cache_{dataset_description}{self.val_data_postfix if data_type == 'val' else ''}.ch", 'rb') as f:
+        if os.path.exists(f"{data_type}_cache_{dataset_description}{self.data_postfix if data_type == 'val' else ''}.ch") is not False:
+            with open(f"{data_type}_cache_{dataset_description}{self.data_postfix if data_type == 'val' else ''}.ch", 'rb') as f:
                 dataset_cache = pickle.load(f);
         else:
             dataset_cache = {};
@@ -300,8 +331,12 @@ class H5SliceData(Dataset):
 
             self.logger.info(f'{dataset_description} does not exists in cache, loading from scratch...')
 
-            if data_type == 'val':
+            if data_type == 'val' and self.validation_data_type != 'inference':
                 self.cache_validation(filepaths, transforms, base_root, data_type);
+                #done loading files, cache it
+                dataset_cache[dataset_description] = [self.data, self.volume_indices]
+            elif data_type == 'val' and self.validation_data_type == 'inference': 
+                self.cache_validation_inference(filepaths, base_root, data_type);
                 #done loading files, cache it
                 dataset_cache[dataset_description] = [self.data, self.volume_indices]
             else:
@@ -309,7 +344,7 @@ class H5SliceData(Dataset):
                 #done loading files, cache it
                 dataset_cache[dataset_description] = [self.data, self.volume_indices]
         
-            with open(f"{data_type}_cache_{dataset_description}{self.val_data_postfix if data_type == 'val' else ''}.ch", 'wb') as f:
+            with open(f"{data_type}_cache_{dataset_description}{self.data_postfix if data_type == 'val' else ''}.ch", 'wb') as f:
                 pickle.dump(dataset_cache, f);
         
         else:

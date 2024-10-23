@@ -9,6 +9,7 @@ from typing import Callable, DefaultDict, Dict, List, Optional, Union
 import torch
 from omegaconf import DictConfig
 
+from direct.utils.dataset import get_filenames_for_datasets
 from direct.data.datasets import build_dataset_from_input
 from direct.data.mri_transforms import build_mri_transforms
 from direct.environment import setup_inference_environment
@@ -16,6 +17,8 @@ from direct.types import FileOrUrl, PathOrString
 from direct.utils import chunks, dict_flatten, remove_keys
 from direct.utils.io import read_list
 from direct.utils.writers import write_output_to_h5
+import pandas as pd
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +26,7 @@ logger = logging.getLogger(__name__)
 def setup_inference_save_to_h5(
     get_inference_settings: Callable,
     run_name: str,
+    data_sheet: str,
     data_root: Union[PathOrString, None],
     base_directory: PathOrString,
     output_directory: PathOrString,
@@ -36,6 +40,7 @@ def setup_inference_save_to_h5(
     mixed_precision: bool = False,
     debug: bool = False,
     is_validation: bool = False,
+    
 ) -> None:
     """This function contains most of the logic in DIRECT required to launch a multi-gpu / multi-node inference process.
 
@@ -86,41 +91,61 @@ def setup_inference_save_to_h5(
 
     dataset_cfg, transforms = get_inference_settings(env)
 
-    # Trigger cudnn benchmark when the number of different input masks_dict is small.
     torch.backends.cudnn.benchmark = True
-    if data_root:
-        if filenames_filter:
-            filenames_filter = [data_root / _ for _ in read_list(filenames_filter)]
-
-    if not process_per_chunk:
-        filenames_filter = [filenames_filter]
-    else:
-        filenames_filter = list(chunks(filenames_filter, process_per_chunk))
-
     logger.info(f"Predicting dataset and saving in: {output_directory}.")
 
-    if is_validation:
-        batch_size, crop = env.cfg.validation.batch_size, env.cfg.validation.crop  # type: ignore
-    else:
-        batch_size, crop = env.cfg.inference.batch_size, env.cfg.inference.crop  # type: ignore
+    datasets = []
+    for idx, (transform, cfg) in enumerate(zip(transforms, dataset_cfg)):
+        if cfg.transforms.masking is None:  # type: ignore
+            logger.info(
+                "Masking function set to None for %s.",
+                dataset_config.text_description,  # type: ignore
+            )
 
-    for curr_filenames_filter in filenames_filter:
+        dataset_args = {"transforms": transform, "dataset_config": cfg}
+        
+        if data_sheet is not None:
+            xls = pd.ExcelFile(data_sheet);
+            sheet_name = dataset_args['dataset_config']['sheet_name']
+            df = pd.read_excel(xls, sheet_name);
+            names = [df.loc[l, 'Name'] for l in np.where(df['New subsets'] == cfg.set_type)[0]]
+            data_root = cfg['base_path']
+            dataset_args.update({"data_root": data_root})
+            filenames_filter = get_filenames_for_datasets(cfg['sheet_name'], data_root, names)
+            dataset_args.update({"filenames_filter": filenames_filter})   
+        dataset_args.update({'data_type': cfg.set_type});
+        dataset_args.update({'validation_data_type': 'inference'});
+        dataset = build_dataset_from_input(**dataset_args)
+
+        datasets.append(dataset)
+        logger.info(
+            "Data size for %s (%s/%s): %s.",
+            cfg.text_description,  # type: ignore
+            idx + 1,
+            len(dataset_cfg),
+            len(dataset),
+        )
+
+
+        if is_validation:
+            batch_size, crop = env.cfg.validation.batch_size, env.cfg.validation.crop  # type: ignore
+        else:
+            batch_size, crop = env.cfg.inference.batch_size, env.cfg.inference.crop  # type: ignore
+
+        
         output = inference_on_environment(
             env=env,
-            data_root=data_root,
-            dataset_cfg=dataset_cfg,
-            transforms=transforms,
+            dataset=dataset,
             experiment_path=base_directory / run_name,
             checkpoint=checkpoint,
             num_workers=num_workers,
-            filenames_filter=curr_filenames_filter,
             batch_size=batch_size,
             crop=crop,
         )
 
         # Perhaps aggregation to the main process would be most optimal here before writing.
         # The current way this write the volumes for each process.
-        write_output_to_h5(
+    write_output_to_h5(
             output,
             output_directory,
             output_key="reconstruction",
@@ -141,13 +166,10 @@ def build_inference_transforms(env, mask_func: Callable, dataset_cfg: DictConfig
 
 def inference_on_environment(
     env,
-    data_root: Union[PathOrString, None],
-    dataset_cfg: DictConfig,
-    transforms: Callable,
+    dataset,
     experiment_path: PathOrString,
     checkpoint: FileOrUrl,
     num_workers: int = 0,
-    filenames_filter: Union[List[PathOrString], None] = None,
     batch_size: int = 1,
     crop: Optional[str] = None,
 ) -> Union[Dict, DefaultDict]:
@@ -179,21 +201,6 @@ def inference_on_environment(
     -------
     output: Union[Dict, DefaultDict]
     """
-
-    logger.warning("pass_h5s and pass_dictionaries is not yet supported for inference.")
-
-    kwargs = {}
-    if data_root is not None:
-        kwargs.update({"data_root": data_root})
-        if filenames_filter:
-            kwargs.update({"filenames_filter": filenames_filter})
-
-    dataset = build_dataset_from_input(transforms=transforms, dataset_config=dataset_cfg, **kwargs)
-
-    if len(dataset) <= 0:
-        logger.info("Inference dataset is empty. Terminating inference...")
-        sys.exit(-1)
-
     logger.info(f"Inference data size: {len(dataset)}.")
 
     # Run prediction

@@ -156,6 +156,7 @@ class DatasetConfig(BaseConfig):
     name: str = MISSING
     transforms: BaseConfig = field(default_factory =TransformsConfig)
     text_description: Optional[str] = None
+    set_type: str = ''
 
 
 @dataclass

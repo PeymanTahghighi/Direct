@@ -17,11 +17,14 @@ logger = logging.getLogger(__name__)
 
 
 def _get_transforms(env):
-    dataset_cfg = env.cfg.inference.dataset
-    masking = dataset_cfg.transforms.masking  # Can be None
-    mask_func = None if masking is None else build_masking_function(**masking)
-    transforms = build_inference_transforms(env, mask_func, dataset_cfg)
-    return dataset_cfg, transforms
+    dataset_cfgs = env.cfg.inference.datasets
+    ret_transforms = [];
+    for cfg in dataset_cfgs:
+        masking = cfg.transforms.masking  # Can be None
+        mask_func = None if masking is None else build_masking_function(**masking)
+        transforms = build_inference_transforms(env, mask_func, cfg)
+        ret_transforms.append(transforms);
+    return dataset_cfgs, ret_transforms
 
 
 setup_inference_save_to_h5 = functools.partial(
@@ -48,6 +51,7 @@ def predict_from_argparse(args: argparse.Namespace):
         args.machine_rank,
         args.dist_url,
         args.name,
+        args.data_sheet,
         args.data_root,
         experiment_directory,
         args.output_directory,

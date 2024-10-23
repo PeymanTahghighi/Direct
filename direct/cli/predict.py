@@ -35,13 +35,15 @@ def register_parser(parser: argparse._SubParsersAction):
         epilog=epilog,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    predict_parser.add_argument("output_directory", type=pathlib.Path, help="Path to the output directory.")
+    predict_parser.add_argument("--output_directory", type=pathlib.Path, help="Path to the output directory.")
     predict_parser.add_argument(
         "--data-root",
         type=pathlib.Path,
         help="Path to the inference data directory (if required by inference dataset).",
         required=False,
     )
+    predict_parser.add_argument("--data_sheet", type=pathlib.Path, 
+                              default = 'data_split.xlsx', help="Path to the data sheet which contains all data and their blonging set.", required=False)
     predict_parser.add_argument(
         "--cfg",
         dest="cfg_file",
@@ -80,5 +82,6 @@ def register_parser(parser: argparse._SubParsersAction):
         type=str,
         default="",
     )
+    
 
     predict_parser.set_defaults(subcommand=predict_from_argparse)
