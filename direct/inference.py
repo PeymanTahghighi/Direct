@@ -208,8 +208,9 @@ def inference_on_environment(
         dataset,
         experiment_path,
         checkpoint=checkpoint,
-        num_workers=num_workers,
         batch_size=batch_size,
         crop=crop,
+        num_workers = env.cfg.inference.num_workers,
+        prefetch_factor = env.cfg.inference.prefetch_factor,
     )
     return output

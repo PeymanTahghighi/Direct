@@ -167,6 +167,7 @@ class Engine(ABC, DataDimensionality):
         experiment_directory: pathlib.Path,
         checkpoint: Union[int, str, pathlib.Path, None] = -1,
         num_workers: int = 6,
+        prefetch_factor: int = 1,
         batch_size: int = 1,
         crop: Optional[str] = None,
     ) -> List[np.ndarray]:
@@ -194,7 +195,8 @@ class Engine(ABC, DataDimensionality):
             limit_number_of_volumes=None,
         )
         # TODO: Batch size can be much larger, perhaps have a different batch size during evaluation.
-        data_loader = self.build_loader(dataset, batch_sampler=batch_sampler, num_workers=num_workers)
+        data_loader = self.build_loader(dataset, batch_sampler=batch_sampler, num_workers=num_workers,
+            prefetch_factor = prefetch_factor)
         output = list(self.reconstruct_volumes(data_loader, add_target=False, crop=crop))
 
         return output
