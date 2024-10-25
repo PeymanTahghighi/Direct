@@ -187,8 +187,8 @@ class H5SliceData(Dataset):
                     num_slices = kspace_shape[0]
 
                     for slice_no in range(num_slices):
-                        if os.path.exists(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache{self.val_data_postfix}.ch')) is True:
-                            self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache{self.val_data_postfix}.ch'));
+                        if os.path.exists(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache{self.data_postfix}.ch')) is True:
+                            self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache{self.data_postfix}.ch'));
                             continue;
                         
                         kspace, extra_data = self.get_slice_data(data, filepath, slice_no, pass_attrs=self.pass_attrs, extra_keys=self.extra_keys);

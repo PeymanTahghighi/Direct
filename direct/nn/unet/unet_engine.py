@@ -17,6 +17,71 @@ from direct.config import BaseConfig
 from direct.nn.mri_models import MRIModelEngine
 from direct.nn.ssl.mri_models import JSSLMRIModelEngine, SSLMRIModelEngine
 
+class Unet2dImageSpaceEngine(MRIModelEngine):
+    """Unet2d Image Space Model Engine.
+
+    Parameters
+    ----------
+    cfg: BaseConfig
+        Configuration file.
+    model: nn.Module
+        Model.
+    device: str
+        Device. Can be "cuda:{idx}" or "cpu".
+    mixed_precision: bool
+        Use mixed precision. Default: False.
+    """
+
+    def __init__(
+        self,
+        cfg: BaseConfig,
+        model: nn.Module,
+        device: str,
+        mixed_precision: bool = False,
+
+    ):
+        """Inits :class:`Unet2dImageSpaceEngine`.
+
+        Parameters
+        ----------
+        cfg: BaseConfig
+            Configuration file.
+        model: nn.Module
+            Model.
+        device: str
+            Device. Can be "cuda:{idx}" or "cpu".
+        mixed_precision: bool
+            Use mixed precision. Default: False.
+
+        """
+        super().__init__(
+            cfg,
+            model,
+            device,
+            mixed_precision=mixed_precision,
+        )
+
+    def forward_function(self, data: dict[str, Any]) -> tuple[torch.Tensor, None]:
+        """Forward function for :class:`Unet2dImageSpaceEngine`.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            Input data containing reconstructions from output of different models.
+
+        Returns
+        -------
+        tuple[torch.Tensor, None]
+            Prediction of image.
+        """
+
+        output_image = self.model(masked_kspace=data["masked_kspace"], sensitivity_map=sensitity_map)
+        output_image = T.modulus(output_image)
+
+        output_kspace = None
+
+        return output_image, output_kspace
+
 
 class Unet2dEngine(MRIModelEngine):
     """Unet2d Model Engine.

@@ -148,7 +148,7 @@ def setup_inference_save_to_h5(
     write_output_to_h5(
             output,
             output_directory,
-            output_key="reconstruction",
+            output_key=["reconstruction", "target"],
         )
 
 

@@ -457,3 +457,79 @@ class Unet2d(nn.Module):
         if self.skip_connection:
             output += input_image
         return output
+
+
+class Unet2dImageSpace(nn.Module):
+    """PyTorch implementation of a U-Net model for MRI Reconstruction refinement."""
+
+    def __init__(
+        self,
+        num_filters: int,
+        num_pool_layers: int,
+        dropout_probability: float,
+        normalized: bool = False,
+        **kwargs,
+    ):
+        """Inits :class:`Unet2dImageSpace`.
+
+        Parameters
+        ----------
+        num_filters: int
+            Number of first layer filters.
+        num_pool_layers: int
+            Number of pooling layers.
+        dropout_probability: float
+            Dropout probability.
+        skip_connection: bool
+            If True, skip connection is used for the output. Default: False.
+        normalized: bool
+            If True, Normalized Unet is used. Default: False.
+        kwargs: dict
+        """
+        super().__init__()
+        extra_keys = kwargs.keys()
+        for extra_key in extra_keys:
+            if extra_key not in [
+                "sensitivity_map_model",
+                "model_name",
+            ]:
+                raise ValueError(f"{type(self).__name__} got key `{extra_key}` which is not supported.")
+        self.unet: nn.Module
+        if normalized:
+            self.unet = NormUnetModel2d(
+                in_channels=2,
+                out_channels=2,
+                num_filters=num_filters,
+                num_pool_layers=num_pool_layers,
+                dropout_probability=dropout_probability,
+            )
+        else:
+            self.unet = UnetModel2d(
+                in_channels=2,
+                out_channels=2,
+                num_filters=num_filters,
+                num_pool_layers=num_pool_layers,
+                dropout_probability=dropout_probability,
+            )
+            
+    def forward(
+        self,
+        input_image: torch.Tensor,
+    ) -> torch.Tensor:
+        """Computes forward pass of Unet2d.
+
+        Parameters
+        ----------
+        masked_kspace: torch.Tensor
+            Masked k-space of shape (N, coil, height, width, complex=2).
+        sensitivity_map: torch.Tensor
+            Sensitivity map of shape (N, coil, height, width, complex=2). Default: None.
+
+        Returns
+        -------
+        output: torch.Tensor
+            Output image of shape (N, height, width, complex=2).
+        """
+        
+        output = self.unet(input_image.permute(0, 3, 1, 2)).permute(0, 2, 3, 1)
+        return output

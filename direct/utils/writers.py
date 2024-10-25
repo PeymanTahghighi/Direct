@@ -42,17 +42,19 @@ def write_output_to_h5(
         # Create output directory
         output_directory.mkdir(exist_ok=True, parents=True)
 
-    for idx, (volume, _, filename) in enumerate(output):
+    for idx, (prediction, target,_, filename) in enumerate(output):
         # The output has shape (slice, 1, height, width)
         if isinstance(filename, pathlib.PosixPath):
             filename = filename.name
 
         logger.info(f"({idx + 1}/{len(output)}): Writing {output_directory / filename}...")
 
-        reconstruction = volume.numpy()[:, 0, ...].astype(np.float32)
+        reconstruction = prediction.numpy()[:, 0, ...].astype(np.float32)
+        target = target.numpy()[:, 0, ...].astype(np.float32)
 
         if volume_processing_func:
             reconstruction = volume_processing_func(reconstruction)
 
         with h5py.File(output_directory / filename, "w") as f:
-            f.create_dataset(output_key, data=reconstruction)
+            f.create_dataset(output_key[0], data=reconstruction)
+            f.create_dataset(output_key[1], data=target)
