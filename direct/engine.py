@@ -160,6 +160,20 @@ class Engine(ABC, DataDimensionality):
         available.
         """
 
+    @abstractmethod
+    def _do_iteration_metamodel(
+        self,
+        data: Dict[str, torch.Tensor],
+        loss_fns: Optional[Dict[str, Callable]] = None,
+        regularizer_fns: Optional[Dict[str, Callable]] = None,
+    ) -> DoIterationOutput:
+        """This is a placeholder for the iteration function.
+
+        This needs to perform the backward pass. If using mixed-precision you need to implement `autocast` as well in
+        this function. It is recommended you raise an error if `self.mixed_precision` is true but mixed precision is not
+        available.
+        """
+
     @torch.no_grad()
     def predict(
         self,
@@ -403,6 +417,163 @@ class Engine(ABC, DataDimensionality):
             self.validate_model_at_interval(validation_func, iter_idx, total_iter)
 
             storage.step()
+    
+
+    def training_loop_metamodel(
+        self,
+        training_datasets: List,  # TODO(jt): Improve typing
+        start_iter: int,
+        validation_datasets: Optional[List] = None,
+        experiment_directory: Optional[pathlib.Path] = None,
+        train_num_workers: int = 6,
+        valid_num_workers: int = 0,
+        start_with_validation: bool = False,
+        validation_only: bool = False,
+        validation_set_size: float = 0.5,
+        pin_memory: bool = False,
+        train_prefetch_factor: int = 1,
+        valid_prefetch_factor: int = 0,
+        full_validation_interval : int = 5
+
+    ):
+        self.logger.info(f"Local rank: {communication.get_local_rank()}.")
+        self.models_training_mode()
+
+        loss_fns = self.build_loss()
+        metric_fns = self.build_metrics(self.cfg.training.metrics)  # type: ignore
+        regularizer_fns = self.build_regularizers(self.cfg.training.regularizers)  # type: ignore
+        storage = get_event_storage()
+
+        self.ndim = training_datasets[0].ndim
+        self.logger.info("Data dimensionality: %s.", self.ndim)
+
+        try:
+            training_data = ConcatDataset(training_datasets)
+            if len(training_data) <= 0:
+                raise AssertionError("No training data available")
+        except AssertionError as err:
+            self.logger.info("%s: Terminating training...", err)
+            sys.exit(-1)
+
+        self.logger.info("Concatenated dataset length: %s.", str(len(training_data)))
+        self.logger.info(
+            "Building batch sampler for training set with batch size %s.", self.cfg.training.batch_size  # type: ignore
+        )
+
+        training_sampler = self.build_batch_sampler(
+            training_datasets,
+            self.cfg.training.batch_size,  # type: ignore
+            "random",
+        )
+        data_loader = self.build_loader(
+            training_data,
+            batch_sampler=training_sampler,
+            num_workers=train_num_workers,
+            pin_memory = pin_memory,
+            prefetch_factor = train_prefetch_factor
+        )
+
+        # Convenient shorthand
+        validation_func = functools.partial(
+            self.validation_loop,
+            validation_datasets,
+            None,
+            experiment_directory,
+            num_workers=valid_num_workers,
+            prefetch_factor=valid_prefetch_factor,
+            validation_set_size = validation_set_size,
+            full_validation_interval = full_validation_interval,
+        )
+
+        total_iter = self.cfg.training.num_iterations  # type: ignore
+        fail_counter = 0
+
+        if validation_only:
+            self.logger.info(f"Doing one round of validation ane exiting...")
+            validation_func(start_iter)
+            sys.exit(-1)
+        for data, iter_idx in zip(data_loader, range(start_iter, total_iter)):
+
+            if start_with_validation and iter_idx == start_iter:
+                self.logger.info(f"Starting with validation at iteration: {iter_idx}.")
+                validation_func(iter_idx)
+            try:
+                iteration_output = self._do_iteration_metamodel(data, loss_fns, regularizer_fns=regularizer_fns)
+                loss_dict = iteration_output.data_dict
+            except (ProcessKilledException, TrainingException) as e:
+                # If the process is killed, the DoIterationOutput
+                # if saved at state iter_idx, which is the current state,
+                # so the computation can restart from the last iteration.
+                self.logger.exception(f"Exiting with exception: {e}.")
+                self.checkpoint_and_write_to_logs(iter_idx)
+                sys.exit(-1)
+            except RuntimeError as e:
+                # Maybe string can change
+                if "out of memory" in str(e):
+                    if fail_counter == 3:
+                        self.checkpoint_and_write_to_logs(iter_idx)
+                        raise TrainingException(f"OOM, had three exceptions in a row tries: {e}.")
+                    fail_counter += 1
+                    self.logger.info(f"OOM Error: {e}. Skipping batch. Retry {fail_counter}/3.")
+                    self.__optimizer.zero_grad()  # type: ignore
+                    torch.cuda.empty_cache()
+                    continue
+
+                self.checkpoint_and_write_to_logs(iter_idx)
+                self.logger.info(f"Cannot recover from exception {e}. Exiting.")
+                raise RuntimeError(e)
+
+            if fail_counter > 0:
+                self.logger.info("Recovered from OOM, skipped batch.")
+            fail_counter = 0
+            # Gradient accumulation
+            if (iter_idx + 1) % self.cfg.training.gradient_steps == 0:  # type: ignore
+                if self.cfg.training.gradient_steps > 1:  # type: ignore
+                    for parameter in self.model.parameters():
+                        if parameter.grad is not None:
+                            # In-place division
+                            parameter.grad.div_(self.cfg.training.gradient_steps)  # type: ignore
+                if self.cfg.training.gradient_clipping > 0.0:  # type: ignore
+                    self._scaler.unscale_(self.__optimizer)
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), self.cfg.training.gradient_clipping  # type: ignore
+                    )
+
+                # Gradient norm
+                if self.cfg.training.gradient_debug:  # type: ignore
+                    warnings.warn(
+                        "Gradient debug set. This will affect training performance. Only use for debugging."
+                        "This message will only be displayed once."
+                    )
+                    parameters = list(filter(lambda p: p.grad is not None, self.model.parameters()))
+                    gradient_norm = sum([parameter.grad.data**2 for parameter in parameters]).sqrt()  # type: ignore
+                    storage.add_scalar("train/gradient_norm", gradient_norm)
+
+                # Same as self.__optimizer.step() for mixed precision.
+                self._scaler.step(self.__optimizer)
+                # Updates the scale for next iteration.
+                self._scaler.update()
+
+            # TODO: Optimizer is only set in case of training, mypy inference does not seem to be correct.
+            # Perhaps this has to be written differently, though. Related to #83
+            self.__lr_scheduler.step()  # type: ignore # noqa
+            storage.add_scalar("lr", self.__optimizer.param_groups[0]["lr"], smoothing_hint=False)  # type: ignore
+
+            self.__optimizer.zero_grad()  # type: ignore
+
+            # Reduce the loss over all devices
+            loss_dict_reduced = communication.reduce_tensor_dict(loss_dict)
+            loss_reduced = sum(loss_dict_reduced.values())
+
+            storage.add_scalars(loss=loss_reduced, **loss_dict_reduced)
+            # Maybe not needed.
+            del data
+
+            self.checkpoint_model_at_interval(iter_idx, total_iter)
+            self.write_to_logs_at_interval(iter_idx, total_iter)
+            self.validate_model_at_interval(validation_func, iter_idx, total_iter)
+
+            storage.step()
 
     def validate_model_at_interval(self, func, iter_idx, total_iter):
         if iter_idx >= 5:  # No validation or anything needed
@@ -568,7 +739,8 @@ class Engine(ABC, DataDimensionality):
         pin_memory: bool = False,
         train_prefetch_factor: int = 1,
         valid_prefetch_factor: int = 0,
-        full_validation_interval : int = 5
+        full_validation_interval : int = 5,
+        metamodel = False
     ) -> None:
         self.logger.info("Starting training.")
         # Can consider not to make this a member of self, but that requires that optimizer is passed to
@@ -698,7 +870,24 @@ class Engine(ABC, DataDimensionality):
                     self.logger.info(f'histories loaded...')
                 else:
                     self.logger.info(f'histories not found in checkpoint, skipping...')
-            self.training_loop(
+            if metamodel is False:
+                self.training_loop(
+                    training_datasets,
+                    start_iter,
+                    validation_datasets,
+                    experiment_directory=experiment_directory,
+                    train_num_workers=train_num_workers,
+                    valid_num_workers=valid_num_workers,
+                    start_with_validation=start_with_validation,
+                    validation_only = validation_only,
+                    validation_set_size = validation_set_size,
+                    pin_memory = pin_memory,
+                    train_prefetch_factor = train_prefetch_factor,
+                    valid_prefetch_factor = valid_prefetch_factor,
+                    full_validation_interval = full_validation_interval
+                )
+            else:
+                self.training_loop_metamodel(
                 training_datasets,
                 start_iter,
                 validation_datasets,

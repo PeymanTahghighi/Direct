@@ -3,7 +3,7 @@
 """DIRECT datasets module."""
 
 from __future__ import annotations
-
+import logging
 import bisect
 import contextlib
 import logging
@@ -33,6 +33,7 @@ __all__ = [
     "ConcatDataset",
     "CMRxReconDataset",
     "FastMRIDataset",
+    "ImageSpaceDataset",
     "FakeMRIBlobsDataset",
     "SheppLoganDataset",
     "SheppLoganT1Dataset",
@@ -200,8 +201,6 @@ class FakeMRIBlobsDataset(Dataset):
 
         return sample
 
-
-
 class FastMRIDataset(H5SliceData):
     """FastMRI challenge dataset.
 
@@ -365,6 +364,61 @@ class FastMRIDataset(H5SliceData):
             mask = np.broadcast_to(mask, [kspace_shape[2], mask.shape[-1]])
             mask = mask[np.newaxis, np.newaxis, ..., np.newaxis]
         return mask
+
+class ImageSpaceDataset(Dataset):
+    def __init__(self, 
+                 data_root: pathlib.Path,
+                transform: Optional[Callable] = None,
+                data_cache_tranform: Optional[Callable] = None,
+                filenames_filter: Optional[list[PathOrString]] = None,
+                filenames_lists: Union[list[PathOrString], None] = None,
+                filenames_lists_root: Union[PathOrString, None] = None,
+                regex_filter: Optional[str] = None,
+                pass_mask: bool = False,
+                pass_max: bool = True,
+                initial_images: Union[list[pathlib.Path], None] = None,
+                initial_images_key: Optional[str] = None,
+                noise_data: Optional[dict] = None,
+                pass_h5s: Optional[dict] = None,
+                data_type = 'train',
+                validation_data_type = 'normal',
+                **kwargs,
+                 ) -> None:
+        super().__init__()
+        self.file_names = filenames_filter;
+        self.data = [];
+        self.volume_indices = dict();
+        self.logger = logging.getLogger(type(self).__name__)
+        self.ndim = 2
+        self._preprocess();
+    
+    def _preprocess(self):
+        current_slice_number = 0;
+        
+        self.count = 0;
+        for file_name in self.file_names:
+            try:
+                with h5py.File(file_name,"r") as file:
+                    a = file.keys();
+                    num_slices = np.array(file['target']).shape[0];
+                self.data += [(file_name, i) for i in range(num_slices)]
+                self.volume_indices[file_name] = range(current_slice_number, current_slice_number + num_slices)
+                current_slice_number += num_slices;
+            except OSError as exc:
+                self.logger.warning(f'could not open {file_name} \t {exc}')
+
+    def __len__(self):
+        return len(self.data);
+
+    def __getitem__(self, index) -> Any:
+        sample = dict();
+        with h5py.File(self.data[index][0], 'r') as f:
+            sample['input'] = np.array(f['reconstruction'])[self.data[index][1]][None,...];
+            sample['target'] = np.array(f['target'])[self.data[index][1]][None,...];
+            sample['filename'] = self.data[index][0];
+            sample['slice_no'] = self.data[index][1];
+
+        return sample;
 
 
 class CMRxReconDataset(Dataset):
@@ -743,7 +797,6 @@ class CMRxReconDataset(Dataset):
 
         return sample
 
-
 class CalgaryCampinasDataset(H5SliceData):
     """Calgary-Campinas challenge dataset."""
 
@@ -809,7 +862,6 @@ class CalgaryCampinasDataset(H5SliceData):
             sample = self.transform(sample)
         return sample
 
-
 class ConcatDataset(Dataset):
     """Dataset as a concatenation of multiple datasets.
 
@@ -855,12 +907,10 @@ class ConcatDataset(Dataset):
         sample_idx = idx if dataset_idx == 0 else idx - self.cumulative_sizes[dataset_idx - 1]
         return self.datasets[dataset_idx][sample_idx]
 
-
 class ImageIntensityMode(str, Enum):
     proton = "PROTON"
     t1 = "T1"
     t2 = "T2"
-
 
 class SheppLoganDataset(Dataset):
     """Shepp Logan Dataset for MRI as implemented in [1]_. Code was adapted from [2]_.
@@ -1111,7 +1161,6 @@ class SheppLoganDataset(Dataset):
     def fft(x):
         return np.fft.ifftshift(np.fft.fft2(np.fft.fftshift(x), axes=(1, 2), norm="ortho"))
 
-
 def _mr_relaxation_parameters() -> dict[str, list]:
     r"""Returns MR relaxation parameters for certain tissues as defined in [1]_.
 
@@ -1145,7 +1194,6 @@ def _mr_relaxation_parameters() -> dict[str, list]:
     params["white-matter"] = [0.583, 0.382, np.nan, 0.08, -9e-6]
     params["tumor"] = [0.926, 0.217, np.nan, 0.1, -9e-6]
     return params
-
 
 class SheppLoganProtonDataset(SheppLoganDataset):
     """Creates an instance of :class:`SheppLoganDataset` with `PROTON` intensity."""
@@ -1194,7 +1242,6 @@ class SheppLoganProtonDataset(SheppLoganDataset):
             text_description=text_description,
         )
 
-
 class SheppLoganT1Dataset(SheppLoganDataset):
     """Creates an instance of :class:`SheppLoganDataset` with `T1` intensity."""
 
@@ -1241,7 +1288,6 @@ class SheppLoganT1Dataset(SheppLoganDataset):
             transform=transform,
             text_description=text_description,
         )
-
 
 class SheppLoganT2Dataset(SheppLoganDataset):
     """Creates an instance of :class:`SheppLoganDataset` with `T2` intensity."""
@@ -1294,7 +1340,6 @@ class SheppLoganT2Dataset(SheppLoganDataset):
             text_description=text_description,
         )
 
-
 def build_dataset(
     name: str,
     transforms: Optional[Callable] = None,
@@ -1345,7 +1390,6 @@ def build_dataset(
     logger.debug("Dataset: %s", str(dataset))
 
     return dataset
-
 
 def build_dataset_from_input(
     transforms: Callable,

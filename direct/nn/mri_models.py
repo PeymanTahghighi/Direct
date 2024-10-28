@@ -153,6 +153,66 @@ class MRIModelEngine(Engine):
             sensitivity_map=data["sensitivity_map"],
             data_dict={**loss_dict, **regularizer_dict},
         )
+    
+    def _do_iteration_metamodel(
+        self,
+        data: Dict[str, Any],
+        loss_fns: Optional[Dict[str, Callable]] = None,
+        regularizer_fns: Optional[Dict[str, Callable]] = None,
+    ) -> DoIterationOutput:
+        """Performs forward method and calculates loss functions.
+
+        Parameters
+        ----------
+        data : Dict[str, Any]
+            Data containing keys with values tensors such as k-space, image, sensitivity map, etc.
+        loss_fns : Optional[Dict[str, Callable]]
+            Callable loss functions.
+        regularizer_fns : Optional[Dict[str, Callable]]
+            Callable regularization functions.
+
+        Returns
+        -------
+        DoIterationOutput
+            Contains outputs.
+        """
+
+        # loss_fns can be None, e.g. during validation
+        if loss_fns is None:
+            loss_fns = {}
+
+        if regularizer_fns is None:
+            regularizer_fns = {}
+
+        data = dict_to_device(data, self.device)
+
+        output_image: TensorOrNone
+
+        with autocast(enabled=self.mixed_precision):
+            output_image = self.forward_function(data)
+        
+            loss_dict = {k: torch.tensor([0.0], dtype=data["target"].dtype).to(self.device) for k in loss_fns.keys()}
+            regularizer_dict = {
+                k: torch.tensor([0.0], dtype=data["target"].dtype).to(self.device) for k in regularizer_fns.keys()
+            }
+            loss_dict = self.compute_loss_on_data(loss_dict, loss_fns, data, output_image, output_kspace)
+            regularizer_dict = self.compute_loss_on_data(
+                regularizer_dict, regularizer_fns, data, output_image, output_kspace
+            )
+
+            loss = sum(loss_dict.values()) + sum(regularizer_dict.values())  # type: ignore
+
+        if self.model.training:
+            self._scaler.scale(loss).backward()
+
+        loss_dict = detach_dict(loss_dict)  # Detach dict, only used for logging.
+        regularizer_dict = detach_dict(regularizer_dict)
+
+        return DoIterationOutput(
+            output_image=output_image,
+            sensitivity_map=data["sensitivity_map"],
+            data_dict={**loss_dict, **regularizer_dict},
+        )
 
     def build_loss(self) -> Dict:
         def get_resolution(reconstruction_size):
@@ -791,6 +851,7 @@ class MRIModelEngine(Engine):
         for _, data in enumerate(data_loader):
 
             torch.cuda.empty_cache()
+
             filename = _get_filename_from_batch(data)
             if last_filename is None:
                 last_filename = filename  # First iteration last_filename is not set.
@@ -819,7 +880,7 @@ class MRIModelEngine(Engine):
             # Output can be complex-valued, and has to be cropped. This holds for both output and target.
             output_abs = _process_output(
                 output,
-                scaling_factors,
+                None,
                 resolution=resolution,
                 complex_axis=self._complex_dim,
             )
@@ -828,7 +889,7 @@ class MRIModelEngine(Engine):
             if add_target:
                 target_abs = _process_output(
                     data["target"],
-                    scaling_factors,
+                    None,
                     resolution=resolution,
                     complex_axis=self._complex_dim,
                 )

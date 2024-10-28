@@ -82,6 +82,12 @@ def register_parser(parser: argparse._SubParsersAction):
         default='normal',
     )
 
+    train_parser.add_argument(
+        "--metamodel",
+        help="indicate if we are training meta model or micor models.",
+        action = 'store_true'
+    )
+
     train_parser.add_argument("--name", help="Run name.", required=False, type=str)
 
     train_parser.set_defaults(subcommand=train_from_argparse)

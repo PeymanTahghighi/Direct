@@ -33,6 +33,14 @@ class Unet2dConfig(ModelConfig):
     normalized: bool = False
     image_initialization: InitType = InitType.ZERO_FILLED
 
+@dataclass
+class Unet2dImageSpaceConfig(ModelConfig):
+    num_filters: int = 16
+    num_pool_layers: int = 4
+    dropout_probability: float = 0.0
+    normalized: bool = False
+
+
 
 @dataclass
 class UnetModel3dConfig(ModelConfig):

@@ -182,6 +182,7 @@ def setup_train(
     machine_rank: int,
     mixed_precision: bool,
     debug: bool,
+    metamodel: bool = False
 ):
     env = setup_training_environment(
         run_name,
@@ -191,6 +192,7 @@ def setup_train(
         machine_rank,
         mixed_precision,
         debug=debug,
+        metamodel = metamodel
     )
 
     # Trigger cudnn benchmark and remove the associated cache
@@ -324,7 +326,8 @@ def setup_train(
         pin_memory = env.cfg.training.pin_memory,
         train_prefetch_factor = env.cfg.training.prefetch_factor,
         valid_prefetch_factor = env.cfg.validation.prefetch_factor,
-        full_validation_interval = env.cfg.validation.full_validation_interval
+        full_validation_interval = env.cfg.validation.full_validation_interval,
+        metamodel = metamodel
     )
 
 
@@ -371,4 +374,5 @@ def train_from_argparse(args: argparse.Namespace):
         args.machine_rank,
         args.mixed_precision,
         args.debug,
+        args.metamodel
     )

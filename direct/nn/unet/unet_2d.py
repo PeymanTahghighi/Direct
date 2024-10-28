@@ -468,6 +468,8 @@ class Unet2dImageSpace(nn.Module):
         num_pool_layers: int,
         dropout_probability: float,
         normalized: bool = False,
+        forward_operator: Callable = None,
+        backward_operator: Callable = None,
         **kwargs,
     ):
         """Inits :class:`Unet2dImageSpace`.
@@ -497,16 +499,16 @@ class Unet2dImageSpace(nn.Module):
         self.unet: nn.Module
         if normalized:
             self.unet = NormUnetModel2d(
-                in_channels=2,
-                out_channels=2,
+                in_channels=1,
+                out_channels=1,
                 num_filters=num_filters,
                 num_pool_layers=num_pool_layers,
                 dropout_probability=dropout_probability,
             )
         else:
             self.unet = UnetModel2d(
-                in_channels=2,
-                out_channels=2,
+                in_channels=1,
+                out_channels=1,
                 num_filters=num_filters,
                 num_pool_layers=num_pool_layers,
                 dropout_probability=dropout_probability,
@@ -531,5 +533,5 @@ class Unet2dImageSpace(nn.Module):
             Output image of shape (N, height, width, complex=2).
         """
         
-        output = self.unet(input_image.permute(0, 3, 1, 2)).permute(0, 2, 3, 1)
+        output = self.unet(input_image)
         return output

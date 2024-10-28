@@ -38,6 +38,8 @@ class Unet2dImageSpaceEngine(MRIModelEngine):
         model: nn.Module,
         device: str,
         mixed_precision: bool = False,
+        forward_operator: Callable = None,
+        backward_operator: Callable = None,
 
     ):
         """Inits :class:`Unet2dImageSpaceEngine`.
@@ -75,12 +77,8 @@ class Unet2dImageSpaceEngine(MRIModelEngine):
             Prediction of image.
         """
 
-        output_image = self.model(masked_kspace=data["masked_kspace"], sensitivity_map=sensitity_map)
-        output_image = T.modulus(output_image)
-
-        output_kspace = None
-
-        return output_image, output_kspace
+        output_image = self.model(input_image=data["input"])
+        return output_image
 
 
 class Unet2dEngine(MRIModelEngine):

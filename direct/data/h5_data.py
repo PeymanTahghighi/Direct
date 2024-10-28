@@ -216,9 +216,9 @@ class H5SliceData(Dataset):
                         
                         sample = transforms(sample);
 
-                        with open(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache{self.val_data_postfix}.ch'), 'wb') as f:
+                        with open(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache{self.data_postfix}.ch'), 'wb') as f:
                             pickle.dump(sample, f);
-                        self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache{self.val_data_postfix}.ch'));
+                        self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache{self.data_postfix}.ch'));
 
             except OSError as exc:
                 self.logger.warning("%s failed with OSError: %s. Skipping...", filepath, exc)

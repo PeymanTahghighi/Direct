@@ -422,6 +422,7 @@ def setup_training_environment(
     machine_rank: int,
     mixed_precision: bool,
     debug: bool = False,
+    metamodel: bool = False
 ):
     """Setup training environment.
 
