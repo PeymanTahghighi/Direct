@@ -10,7 +10,7 @@ import logging
 import random
 import warnings
 from typing import Any, Callable, Iterable, Optional, Sequence, Union
-
+from copy import copy
 import numpy as np
 import torch
 
@@ -28,6 +28,7 @@ from direct.ssl.ssl import (
 from direct.types import DirectEnum, IntegerListOrTupleString, KspaceKey, TransformKey
 from direct.utils import DirectModule, DirectTransform
 from direct.utils.asserts import assert_complex
+from torchvision.transforms import transforms
 
 logger = logging.getLogger(__name__)
 
@@ -865,6 +866,41 @@ class ReconstructionType(DirectEnum):
     SENSE = "sense"
     SENSE_MOD = "sense_mod"
 
+class NormlaizeImageSpace(DirectTransform):
+    def __init__(self):
+        super().__init__()
+    
+    def __call__(self, sample: dict[str, Any]):
+        sample_keys = list(sample.keys());
+        inputs = dict();
+
+        for key in sample_keys:
+            if 'input' in key or 'target' in key:
+                recon = sample[key];
+                
+
+                if key == 'target':
+                    sample['target_scaling_factor'] = [recon.min(), recon.max()];
+                    recon -= recon.min()
+                    recon /= recon.max()
+                    sample[key] = recon;
+                    continue;
+        
+                inputs[key] = recon;
+        inputs_np = [inputs[k] for k in inputs.keys()];
+        inputs_np = np.concatenate([*inputs_np], axis= 0);
+        inputs_mean = np.mean(inputs_np);
+        inputs_std = np.std(inputs_np);
+        sample['output_scaling_factor'] = [inputs_mean, inputs_std]
+        inputs_np = (inputs_np - inputs_mean) / inputs_std;
+        inputs_mean = np.mean(inputs_np);
+        inputs_std = np.std(inputs_np);
+        for k in inputs.keys():
+            recon = inputs[k];
+            normalized_recon = (recon - inputs_mean ) / inputs_std;
+            sample[k] = normalized_recon;
+        return sample;
+        
 
 class ComputeImageModule(DirectModule):
     """Compute Image transform."""
@@ -1680,14 +1716,17 @@ class ToTensor(DirectTransform):
              Contains key 'kspace' with value a torch.Tensor of shape (coil, height, width) (2D)
              or (coil, slice, height, width) (3D)
         """
-
-        ndim = sample["kspace"].ndim - 1
-
-        if ndim not in [2, 3]:
-            raise ValueError(f"Can only cast 2D and 3D data (+coil) to tensor. Got {ndim}.")
+        
+        
 
         # Shape:    2D: (coil, height, width, complex=2), 3D: (coil, slice, height, width, complex=2)
-        sample["kspace"] = T.to_tensor(sample["kspace"]).float()
+        if 'kspace' in sample:
+            sample["kspace"] = T.to_tensor(sample["kspace"]).float()
+            ndim = sample["kspace"].ndim - 1
+
+            if ndim not in [2, 3]:
+                raise ValueError(f"Can only cast 2D and 3D data (+coil) to tensor. Got {ndim}.")
+            
         # Sensitivity maps are not necessarily available in the dataset.
         if "initial_kspace" in sample:
             # Shape:    2D: (coil, height, width, complex=2), 3D: (coil, slice, height, width, complex=2)
@@ -1711,7 +1750,8 @@ class ToTensor(DirectTransform):
         if "loglikelihood_scaling" in sample:
             # Shape: (coil, )
             sample["loglikelihood_scaling"] = torch.from_numpy(np.asarray(sample["loglikelihood_scaling"])).float()
-
+        if 'input' in sample:
+            sample['input'] = torch.from_numpy(sample['input']).float();
         return sample
 
 
@@ -2261,6 +2301,26 @@ def build_supervised_mri_transforms(
 
     return Compose(mri_transforms)
 
+
+def build_imagepsace_transforms(
+   to_tensor = True,
+   normalize = True
+) -> DirectTransform:
+    r"""Builds supervised MRI transforms.
+
+    Returns
+    -------
+    DirectTransform
+        An MRI transformation object.
+    """
+    image_space_transforms: list[Callable] = [];
+    if to_tensor:
+        image_space_transforms: list[Callable] = [ToTensor()]
+
+    if normalize:
+        image_space_transforms += [NormlaizeImageSpace()];
+
+    return Compose(image_space_transforms)
 
 class TransformsType(DirectEnum):
     SUPERVISED = "supervised"

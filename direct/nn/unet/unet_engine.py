@@ -76,8 +76,12 @@ class Unet2dImageSpaceEngine(MRIModelEngine):
         tuple[torch.Tensor, None]
             Prediction of image.
         """
-
-        output_image = self.model(input_image=data["input"])
+        inputs = [];
+        for key in data.keys():
+            if 'input' in key:
+                inputs.append(data[key]);
+        
+        output_image = self.model(input_images=inputs)
         return output_image
 
 

@@ -39,6 +39,7 @@ class Unet2dImageSpaceConfig(ModelConfig):
     num_pool_layers: int = 4
     dropout_probability: float = 0.0
     normalized: bool = False
+    num_inputs: int = 1
 
 
 

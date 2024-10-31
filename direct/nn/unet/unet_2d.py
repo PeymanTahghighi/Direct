@@ -214,7 +214,7 @@ class UnetModel2d(nn.Module):
 
             output = torch.cat([output, downsample_layer], dim=1)
             output = conv(output)
-
+        output = F.relu(output);
         return output
 
 
@@ -470,6 +470,7 @@ class Unet2dImageSpace(nn.Module):
         normalized: bool = False,
         forward_operator: Callable = None,
         backward_operator: Callable = None,
+        num_inputs: int = 1,
         **kwargs,
     ):
         """Inits :class:`Unet2dImageSpace`.
@@ -499,7 +500,7 @@ class Unet2dImageSpace(nn.Module):
         self.unet: nn.Module
         if normalized:
             self.unet = NormUnetModel2d(
-                in_channels=1,
+                in_channels=num_inputs,
                 out_channels=1,
                 num_filters=num_filters,
                 num_pool_layers=num_pool_layers,
@@ -507,16 +508,16 @@ class Unet2dImageSpace(nn.Module):
             )
         else:
             self.unet = UnetModel2d(
-                in_channels=1,
+                in_channels=num_inputs,
                 out_channels=1,
                 num_filters=num_filters,
                 num_pool_layers=num_pool_layers,
                 dropout_probability=dropout_probability,
             )
-            
+
     def forward(
         self,
-        input_image: torch.Tensor,
+        input_images: torch.Tensor,
     ) -> torch.Tensor:
         """Computes forward pass of Unet2d.
 
@@ -532,6 +533,6 @@ class Unet2dImageSpace(nn.Module):
         output: torch.Tensor
             Output image of shape (N, height, width, complex=2).
         """
-        
+        input_image = torch.cat([*input_images], dim = 1)
         output = self.unet(input_image)
         return output

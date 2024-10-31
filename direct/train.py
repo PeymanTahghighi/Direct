@@ -18,7 +18,7 @@ from direct.cli.utils import check_train_val
 from direct.common.subsample import build_masking_function
 from direct.data.datasets import build_dataset_from_input
 from direct.data.lr_scheduler import WarmupMultiStepLR
-from direct.data.mri_transforms import build_mri_transforms
+from direct.data.mri_transforms import build_mri_transforms, build_imagepsace_transforms
 from direct.environment import setup_training_environment
 from direct.launch import launch
 from direct.types import PathOrString
@@ -88,20 +88,21 @@ def build_transforms_from_environment(env, dataset_config: DictConfig) -> Callab
         estimate_sensitivity_maps = False
     )
 
-    mri_data_cache_transforms_func = functools.partial(
-        build_mri_transforms,
-        forward_operator=env.engine.forward_operator,
-        backward_operator=env.engine.backward_operator,
-        mask_func=None,
-        to_tensor = False,
-        delete_acs_mask = False,
-        delete_kspace = False,
-        apply_mask = False,
-        compute_scaling_factor = False,
-        estimate_sensitivity_maps = False
+   
+
+    return mri_transforms_func(**dict_flatten(dict(remove_keys(dataset_config.transforms, "masking")))) # type: ignore
+
+def build_imagespace_transforms_from_environment(env, dataset_config: DictConfig) -> Callable:
+   
+    imagespace_transforms_train_func = functools.partial(
+        build_imagepsace_transforms,
     )
 
-    return mri_transforms_func(**dict_flatten(dict(remove_keys(dataset_config.transforms, "masking")))), mri_data_cache_transforms_func(**dict_flatten(dict(remove_keys(remove_keys(dataset_config.transforms, "sensitivity_map_estimation"), "masking"))))  # type: ignore
+    imagespace_transforms_valid_func = functools.partial(
+        build_imagepsace_transforms,
+    )
+    return imagespace_transforms_train_func(), imagespace_transforms_valid_func()  # type: ignore
+
 
 
 def build_training_datasets_from_environment(
@@ -114,7 +115,8 @@ def build_training_datasets_from_environment(
     pass_text_description: bool = True,
     pass_dictionaries: Optional[Dict[str, Dict]] = None,
     data_type: str = 'train',
-    validation_data_type: str = 'normal'
+    validation_data_type: str = 'normal',
+    metamodel = False
 ):
     datasets = []
     for idx, dataset_config in enumerate(datasets_config):
@@ -123,12 +125,16 @@ def build_training_datasets_from_environment(
                 dataset_config.text_description = f"ds{idx}" if len(datasets_config) > 1 else None
         else:
             dataset_config.text_description = None
-        if dataset_config.transforms.masking is None:  # type: ignore
-            logger.info(
-                "Masking function set to None for %s.",
-                dataset_config.text_description,  # type: ignore
-            )
-        train_transforms, data_cache_tranform = build_transforms_from_environment(env, dataset_config)
+        if metamodel is False:
+            if dataset_config.transforms.masking is None:  # type: ignore
+                logger.info(
+                    "Masking function set to None for %s.",
+                    dataset_config.text_description,  # type: ignore
+                )
+        if metamodel is False:
+            train_transforms = build_transforms_from_environment(env, dataset_config)
+        else:
+            train_transforms, val_transforms = build_imagespace_transforms_from_environment(env, dataset_config);
         dataset_args = {"transforms": train_transforms, "dataset_config": dataset_config}
         if initial_images is not None:
             dataset_args.update({"initial_images": initial_images})
@@ -148,6 +154,8 @@ def build_training_datasets_from_environment(
         dataset_args.update({'data_type': data_type});
         dataset_args.update({'data_cache_tranform': train_transforms if data_type=='val' else None});
         dataset_args.update({'validation_data_type': validation_data_type});
+        if metamodel:
+            dataset_args.update({'validation_transforms': val_transforms});
         dataset = build_dataset_from_input(**dataset_args)
 
         logger.debug("Transforms %s / %s :\n%s", idx + 1, len(datasets_config), train_transforms)
@@ -224,7 +232,7 @@ def setup_train(
         training_dataset_args.update({"initial_images": initial_images[0]})
     if initial_kspace is not None:
         training_dataset_args.update({"initial_kspaces": initial_kspace[0]})
-
+    training_dataset_args.update({'metamodel': metamodel});
     # Build training datasets
     training_datasets = build_training_datasets_from_environment(**training_dataset_args)
     training_data_sizes = [len(_) for _ in training_datasets]
@@ -247,6 +255,7 @@ def setup_train(
         if initial_kspace is not None:
             validation_dataset_args.update({"initial_kspaces": initial_kspace[1]})
         validation_dataset_args.update({'data_type': 'val', 'validation_data_type': validation_data_type});
+        validation_dataset_args.update({'metamodel': metamodel});
         # Build validation datasets
         validation_data = build_training_datasets_from_environment(**validation_dataset_args)
     else:

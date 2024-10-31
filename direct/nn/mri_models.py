@@ -9,6 +9,7 @@ import pathlib
 import time
 from collections import defaultdict
 from os import PathLike
+import os
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -21,7 +22,7 @@ from torch.utils.data import DataLoader
 import direct.data.transforms as T
 import direct.functionals as D
 from direct.config import BaseConfig
-from direct.engine import DoIterationOutput, Engine
+from direct.engine import DoIterationOutput, DoIterationMetamodelOutput, Engine
 from direct.nn.types import LossFunType
 from direct.types import TensorOrNone
 from direct.utils import (
@@ -195,9 +196,9 @@ class MRIModelEngine(Engine):
             regularizer_dict = {
                 k: torch.tensor([0.0], dtype=data["target"].dtype).to(self.device) for k in regularizer_fns.keys()
             }
-            loss_dict = self.compute_loss_on_data(loss_dict, loss_fns, data, output_image, output_kspace)
+            loss_dict = self.compute_loss_on_data(loss_dict, loss_fns, data, output_image)
             regularizer_dict = self.compute_loss_on_data(
-                regularizer_dict, regularizer_fns, data, output_image, output_kspace
+                regularizer_dict, regularizer_fns, data, output_image
             )
 
             loss = sum(loss_dict.values()) + sum(regularizer_dict.values())  # type: ignore
@@ -208,9 +209,8 @@ class MRIModelEngine(Engine):
         loss_dict = detach_dict(loss_dict)  # Detach dict, only used for logging.
         regularizer_dict = detach_dict(regularizer_dict)
 
-        return DoIterationOutput(
+        return DoIterationMetamodelOutput(
             output_image=output_image,
-            sensitivity_map=data["sensitivity_map"],
             data_dict={**loss_dict, **regularizer_dict},
         )
 
@@ -392,14 +392,18 @@ class MRIModelEngine(Engine):
             ssim_loss: torch.Tensor
                 SSIM loss.
             """
-            resolution = get_resolution(reconstruction_size)
+            if reconstruction_size is not None:
+                resolution = get_resolution(reconstruction_size)
             if reduction != "mean":
                 raise AssertionError(
                     f"SSIM loss can only be computed with reduction == 'mean'." f" Got reduction == {reduction}."
                 )
             if self.ndim == 3:
                 source, target = _reduce_slice_dim(source, target)
-            source_abs, target_abs = _crop_volume(source, target, resolution)
+            if reconstruction_size is not None:
+                source_abs, target_abs = _crop_volume(source, target, resolution)
+            else:
+                source_abs, target_abs = source, target;
             data_range = torch.tensor([target_abs.max()], device=target_abs.device)
 
             ssim_loss = D.SSIMLoss().to(source_abs.device).forward(source_abs, target_abs, data_range=data_range)
@@ -861,8 +865,6 @@ class MRIModelEngine(Engine):
                 slice_counter = 0
                 last_filename = filename
 
-            scaling_factors = data["scaling_factor"].clone()
-
 
             resolution = _compute_resolution(
                 key=crop,
@@ -930,12 +932,127 @@ class MRIModelEngine(Engine):
                         filename,
                     )
                 )
+    
+    @torch.no_grad()
+    def reconstruct_volumes_metamodel(  # type: ignore
+        self,
+        data_loader: DataLoader,
+        loss_fns: Optional[Dict[str, Callable]] = None,
+        regularizer_fns: Optional[Dict[str, Callable]] = None,
+        add_target: bool = True,
+        crop: Optional[str] = None,
+    ):
+        """Validation process. Assumes that each batch only contains slices of the same volume *AND* that these are
+        sequentially ordered.
+
+        Parameters
+        ----------
+        data_loader: DataLoader
+        loss_fns: Dict[str, Callable], optional
+        regularizer_fns: Dict[str, Callable], optional
+        add_target: bool
+            If true, will add the target to the output
+        crop: str, optional
+            Crop type.
+
+        Yields
+        ------
+        (curr_volume, [curr_target,] loss_dict_list, filename): torch.Tensor, [torch.Tensor,], dict, pathlib.Path
+        """
+        # pylint: disable=too-many-locals, arguments-differ
+        self.models_to_device()
+        self.models_validation_mode()
+        torch.cuda.empty_cache()
+
+        # Let us inspect this data
+        all_filenames = list(data_loader.dataset.volume_indices.keys())  # type: ignore
+        num_for_this_process = len(list(data_loader.dataset.volume_indices.keys()))  # type: ignore
+        self.logger.info(
+            "Reconstructing a total of %s volumes. This process has %s volumes (world size: %s).",
+            len(all_filenames),
+            num_for_this_process,
+            communication.get_world_size(),
+        )
+
+        last_filename = None  # At the start of evaluation, there are no filenames.
+        curr_volume = None
+        curr_target = None
+        slice_counter = 0
+        filenames_seen = 0
+
+        # Loop over dataset. This requires the use of direct.data.sampler.DistributedSequentialSampler as this sampler
+        # splits the data over the different processes, and outputs the slices linearly. The implicit assumption here is
+        # that the slices are outputted from the Dataset *sequentially* for each volume one by one, and each batch only
+        # contains data from one volume.
+        time_start = time.time()
+        loss_dict_list = []
+
+        # TODO: Use iter_idx to keep track of volume
+        for _, data in enumerate(data_loader):
+
+            torch.cuda.empty_cache()
+
+            filename = _get_filename_from_batch(data, metamodel=True)
+            if last_filename is None:
+                last_filename = filename  # First iteration last_filename is not set.
+            if last_filename != filename:
+                curr_volume = None
+                curr_target = None
+                slice_counter = 0
+                last_filename = filename
+
+            # Compute output
+            iteration_output = self._do_iteration_metamodel(data, loss_fns=loss_fns, regularizer_fns=regularizer_fns)
+
+            output = iteration_output.output_image.cpu()
+            loss_dict = iteration_output.data_dict
+            target = data['target'];
+            target = target * data['target_scaling_factor'][1] + data['target_scaling_factor'][0]
+            output = output * data['output_scaling_factor'][1] + data['output_scaling_factor'][0]
+
+            if curr_volume is None:
+                volume_size = len(data_loader.dataset.volume_indices[filename])  # type: ignore
+                curr_volume = torch.zeros(*(volume_size, *output.shape[1:]), dtype=output.dtype)
+                loss_dict_list.append(loss_dict)
+                if add_target:
+                    curr_target = curr_volume.clone()
+
+            curr_volume[slice_counter : slice_counter + output.shape[0], ...] = output.cpu()
+            if add_target:
+                curr_target[slice_counter : slice_counter + output.shape[0], ...] = target.cpu()  # type: ignore
+
+            slice_counter += output.shape[0]
+
+            # Check if we had the last batch
+            if slice_counter == volume_size:
+                filenames_seen += 1
+                
+                self.logger.info(
+                    "%i of %i volumes reconstructed: %s (shape = %s) in %.3fs.",
+                    filenames_seen,
+                    num_for_this_process,
+                    last_filename,
+                    list(curr_volume.shape),
+                    time.time() - time_start,
+                )
+                # Maybe not needed.
+                del data
+                yield (
+                    (curr_volume, curr_target, reduce_list_of_dicts(loss_dict_list), filename)
+                    if add_target
+                    else (
+                        curr_volume,
+                        reduce_list_of_dicts(loss_dict_list),
+                        filename,
+                    )
+                )
 
     @torch.no_grad()
     def evaluate(  # type: ignore
         self,
         data_loader: DataLoader,
         loss_fns: Optional[Dict[str, Callable]],
+        metamodel = False
     ):
         """Validation process.
 
@@ -969,6 +1086,8 @@ class MRIModelEngine(Engine):
         for _, output in enumerate(
             self.reconstruct_volumes(
                 data_loader, loss_fns=loss_fns, add_target=True, crop=self.cfg.validation.crop  # type: ignore
+            ) if metamodel is False else self.reconstruct_volumes_metamodel(
+                data_loader, loss_fns=loss_fns, add_target=True, crop=self.cfg.validation.crop  # type: ignore
             )
         ):
             volume, target, volume_loss_dict, filename = output
@@ -990,7 +1109,10 @@ class MRIModelEngine(Engine):
             curr_metrics_string = ", ".join([f"{x}: {float(y)}" for x, y in curr_metrics.items()])
             self.logger.info("Metrics for %s: %s", filename, curr_metrics_string)
             # TODO: Path can be tricky if it is not unique (e.g. image.h5)
-            val_volume_metrics[filename.name] = curr_metrics
+            if metamodel is False:
+                val_volume_metrics[filename.name] = curr_metrics
+            else:
+                val_volume_metrics[filename] = curr_metrics
             val_losses.append(volume_loss_dict)
 
             # Log the center slice of the volume
@@ -1205,11 +1327,13 @@ def _compute_resolution(
         raise ValueError("Cropping should be either set to `header` to get the values from the header or None.")
 
 
-def _get_filename_from_batch(data: dict) -> pathlib.Path:
+def _get_filename_from_batch(data: dict, metamodel = False) -> pathlib.Path:
     filenames = data["filename"]
     if len(set(filenames)) != 1:
         raise ValueError(
             f"Expected a batch during validation to only contain filenames of one case. " f"Got {set(filenames)}."
         )
     # This can be fixed when there is a custom collate_fn
+    if metamodel is True:
+        return os.path.basename(filenames[0])
     return pathlib.Path(filenames[0])

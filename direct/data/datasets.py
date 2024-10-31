@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 import logging
+import os
 import bisect
 import contextlib
 import logging
@@ -13,6 +14,7 @@ import xml.etree.ElementTree as etree  # nosec
 from enum import Enum
 from typing import Any, Callable, Optional, Sequence, Union
 
+import pickle
 import h5py
 import numpy as np
 from omegaconf import DictConfig
@@ -381,7 +383,6 @@ class ImageSpaceDataset(Dataset):
                 noise_data: Optional[dict] = None,
                 pass_h5s: Optional[dict] = None,
                 data_type = 'train',
-                validation_data_type = 'normal',
                 **kwargs,
                  ) -> None:
         super().__init__()
@@ -390,34 +391,68 @@ class ImageSpaceDataset(Dataset):
         self.volume_indices = dict();
         self.logger = logging.getLogger(type(self).__name__)
         self.ndim = 2
+        self.text_description = kwargs.get("text_description", None)
+        self.train_transforms = transform;
+        self.valid_transforms = kwargs.get('validation_transforms')
+        self.data_type = data_type;
         self._preprocess();
     
     def _preprocess(self):
-        current_slice_number = 0;
+        """
+            Here, we always assume that the given files_names is going to be a list of files of list of files
+            with a size of at least 2 since we are using this class for ensemble learning of multiple inputs.
+        """
+        if os.path.exists(f"{self.data_type}_cache_{self.text_description}_metamodel.ch") is not False:
+            with open(f"{self.data_type}_cache_{self.text_description}_metamodel.ch", 'rb') as f:
+                dataset_cache = pickle.load(f);
+        else:
+            dataset_cache = {};
         
-        self.count = 0;
-        for file_name in self.file_names:
-            try:
-                with h5py.File(file_name,"r") as file:
-                    a = file.keys();
-                    num_slices = np.array(file['target']).shape[0];
-                self.data += [(file_name, i) for i in range(num_slices)]
-                self.volume_indices[file_name] = range(current_slice_number, current_slice_number + num_slices)
-                current_slice_number += num_slices;
-            except OSError as exc:
-                self.logger.warning(f'could not open {file_name} \t {exc}')
-
+        if self.text_description not in dataset_cache:
+            self.logger.info(f'{self.text_description} does not exists in cache, loading from scratch...')
+            current_slice_number = 0;
+            self.count = 0;
+            #since we always going to have a list here, first item always exists.
+            for i in range(len(self.file_names[0])):
+                base_file_name = os.path.basename(self.file_names[0][i])
+                row = [self.file_names[j][i] for j in range(len(self.file_names))];
+                try:
+                    #just check to make sure we can load all the files
+                    _ = [h5py.File(self.file_names[j][i],"r") for j in range(len(self.file_names))];
+                    
+                    with h5py.File(self.file_names[0][i],"r") as file:
+                        num_slices = np.array(file['target']).shape[0];
+                        self.data += [(row, i) for i in range(num_slices)]
+                        self.volume_indices[base_file_name] = range(current_slice_number, current_slice_number + num_slices)
+                        current_slice_number += num_slices;
+                except OSError as exc:
+                    self.logger.warning(f'could not open {base_file_name} \t {exc}')
+                
+            dataset_cache[self.text_description] = [self.data, self.volume_indices]
+            with open(f"{self.data_type}_cache_{self.text_description}_metamodel.ch", 'wb') as f:
+                pickle.dump(dataset_cache, f);
+        else:
+            self.logger.info(f'{self.text_description} found in cache, loading from cache...')
+            self.data, self.volume_indices = dataset_cache[self.text_description];
+    
     def __len__(self):
         return len(self.data);
 
     def __getitem__(self, index) -> Any:
+        import time;
         sample = dict();
-        with h5py.File(self.data[index][0], 'r') as f:
-            sample['input'] = np.array(f['reconstruction'])[self.data[index][1]][None,...];
-            sample['target'] = np.array(f['target'])[self.data[index][1]][None,...];
-            sample['filename'] = self.data[index][0];
+        for i in range(len(self.data[index][0])):
+            with h5py.File(self.data[index][0][i], 'r') as f:
+                sample[f'input{i}'] = np.array(f['reconstruction'])[self.data[index][1]][None,...];
+                if i == 0:
+                    sample['target'] = np.array(f['target'])[self.data[index][1]][None,...];
+                    sample['filename'] = self.data[index][0][i]
             sample['slice_no'] = self.data[index][1];
-
+        
+        if self.data_type == 'train':
+            sample = self.train_transforms(sample);
+        else:
+            self.valid_transforms(sample);
         return sample;
 
 

@@ -119,7 +119,7 @@ def get_filenames_for_datasets_from_config(cfg, files_root: PathOrString, data_r
     return get_filenames_for_datasets(lists, files_root, data_root)
 
 
-def get_filenames_for_datasets(dataset_name: str,base_path: pathlib.Path, file_names: List[PathOrString]):
+def get_filenames_for_datasets(dataset_name: str, base_path, file_names: List[PathOrString]):
     """Given lists of filenames of data points, concatenate these into a large list of full filenames.
 
     Parameters
@@ -137,16 +137,31 @@ def get_filenames_for_datasets(dataset_name: str,base_path: pathlib.Path, file_n
 
     ret = [];
 
-    if dataset_name == 'AHEAD':
-        ret.extend(os.path.join(base_path, 'ax', d[:d.rfind('.')] + '_ax' + '.h5') for d in file_names);
-        ret.extend(os.path.join(base_path, 'cor', d[:d.rfind('.')] + '_cor' + '.h5') for d in file_names);
-        ret.extend(os.path.join(base_path, 'sag',  d[:d.rfind('.')] + '_sag' + '.h5') for d in file_names);
-    
-    elif dataset_name == 'SKM-TEA':
-        ret.extend(os.path.join(base_path, "E1_" + d) for d in file_names);
-        ret.extend(os.path.join(base_path, "E2_" + d) for d in file_names);
+    if isinstance(base_path, str):
+        if dataset_name == 'AHEAD':
+            ret.extend(os.path.join(base_path, 'ax', d[:d.rfind('.')] + '_ax' + '.h5') for d in file_names);
+            ret.extend(os.path.join(base_path, 'cor', d[:d.rfind('.')] + '_cor' + '.h5') for d in file_names);
+            ret.extend(os.path.join(base_path, 'sag',  d[:d.rfind('.')] + '_sag' + '.h5') for d in file_names);
+        
+        elif dataset_name == 'SKM-TEA':
+            ret.extend(os.path.join(base_path, "E1_" + d) for d in file_names);
+            ret.extend(os.path.join(base_path, "E2_" + d) for d in file_names);
 
+        else:
+            ret = [os.path.join(base_path, f) for f in file_names];
     else:
-        ret = [os.path.join(base_path, f) for f in file_names];
+        for i in range(len(base_path)):
+            temp_list = [];
+            if dataset_name == 'AHEAD':
+                temp_list.extend(os.path.join(base_path[i], d[:d.rfind('.')] + '_ax' + '.h5') for d in file_names);
+                temp_list.extend(os.path.join(base_path[i], d[:d.rfind('.')] + '_cor' + '.h5') for d in file_names);
+                temp_list.extend(os.path.join(base_path[i],  d[:d.rfind('.')] + '_sag' + '.h5') for d in file_names);
+            
+            elif dataset_name == 'SKM-TEA':
+                temp_list.extend(os.path.join(base_path[i], "E1_" + d) for d in file_names);
+                temp_list.extend(os.path.join(base_path[i], "E2_" + d) for d in file_names);
 
+            else:
+                temp_list = [os.path.join(base_path[i], f) for f in file_names];
+            ret.append(temp_list);
     return ret

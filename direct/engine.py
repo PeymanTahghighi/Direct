@@ -51,6 +51,11 @@ DoIterationOutput = namedtuple(
     ["output_image", "sensitivity_map", "data_dict"],
 )
 
+DoIterationMetamodelOutput = namedtuple(
+    "DoIterationOutput",
+    ["output_image", "data_dict"],
+)
+
 
 class DataDimensionality:
     def __init__(self):
@@ -483,6 +488,7 @@ class Engine(ABC, DataDimensionality):
             prefetch_factor=valid_prefetch_factor,
             validation_set_size = validation_set_size,
             full_validation_interval = full_validation_interval,
+            metamodel = True
         )
 
         total_iter = self.cfg.training.num_iterations  # type: ignore
@@ -613,6 +619,7 @@ class Engine(ABC, DataDimensionality):
         prefetch_factor: int = 0,
         validation_set_size: float = 0.5,
         full_validation_interval:int = 5,
+        metamodel = False
     ):
         if not validation_datasets:
             return
@@ -628,8 +635,8 @@ class Engine(ABC, DataDimensionality):
         for curr_validation_dataset in validation_datasets:
 
             curr_dataset_name = curr_validation_dataset.text_description
-            if full is False and curr_dataset_name != 'FastMRI-brain':
-                continue;
+            # if full is False and curr_dataset_name != 'FastMRI-brain':
+            #     continue;
             
             self.logger.info("Evaluating: %s...", curr_dataset_name)
             self.logger.info("Building dataloader for dataset: %s.", curr_dataset_name)
@@ -648,6 +655,7 @@ class Engine(ABC, DataDimensionality):
             ) = self.evaluate(
                 curr_data_loader,
                 loss_fns,
+                metamodel = metamodel
             )
             if experiment_directory:
                 json_output_fn = experiment_directory / f"metrics_val_{curr_dataset_name}_{iter_idx}.json"
@@ -687,7 +695,7 @@ class Engine(ABC, DataDimensionality):
 
             self.logger.info("Done evaluation of %s at iteration %s.", str(curr_dataset_name), str(iter_idx))
 
-        self.__validation_counter +=1 ;
+        self.__validation_counter +=1;
         self.model.train()
 
 
