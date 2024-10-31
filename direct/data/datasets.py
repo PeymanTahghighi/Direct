@@ -13,6 +13,7 @@ import sys
 import xml.etree.ElementTree as etree  # nosec
 from enum import Enum
 from typing import Any, Callable, Optional, Sequence, Union
+from sklearn.utils import shuffle
 
 import pickle
 import h5py
@@ -386,7 +387,6 @@ class ImageSpaceDataset(Dataset):
                 **kwargs,
                  ) -> None:
         super().__init__()
-        self.file_names = filenames_filter;
         self.data = [];
         self.volume_indices = dict();
         self.logger = logging.getLogger(type(self).__name__)
@@ -395,9 +395,9 @@ class ImageSpaceDataset(Dataset):
         self.train_transforms = transform;
         self.valid_transforms = kwargs.get('validation_transforms')
         self.data_type = data_type;
-        self._preprocess();
+        self._preprocess(filenames_filter);
     
-    def _preprocess(self):
+    def _preprocess(self, filepaths):
         """
             Here, we always assume that the given files_names is going to be a list of files of list of files
             with a size of at least 2 since we are using this class for ensemble learning of multiple inputs.
@@ -410,17 +410,25 @@ class ImageSpaceDataset(Dataset):
         
         if self.text_description not in dataset_cache:
             self.logger.info(f'{self.text_description} does not exists in cache, loading from scratch...')
+            if self.data_type == 'val':
+                #shuffle and take first 30% of validation data
+                for i in range(len(filepaths)):
+                    filepaths_dataset = filepaths[i];
+                    filepaths_dataset = shuffle(filepaths_dataset, random_state = 42);
+                    filepaths_dataset = filepaths_dataset[:max(int(len(filepaths_dataset)*0.3), 1)];
+                    filepaths[i] = filepaths_dataset;
+                self.logger.info(f'took 30% of validation data...')
             current_slice_number = 0;
             self.count = 0;
             #since we always going to have a list here, first item always exists.
-            for i in range(len(self.file_names[0])):
-                base_file_name = os.path.basename(self.file_names[0][i])
-                row = [self.file_names[j][i] for j in range(len(self.file_names))];
+            for i in range(len(filepaths[0])):
+                base_file_name = os.path.basename(filepaths[0][i])
+                row = [filepaths[j][i] for j in range(len(filepaths))];
                 try:
                     #just check to make sure we can load all the files
-                    _ = [h5py.File(self.file_names[j][i],"r") for j in range(len(self.file_names))];
+                    _ = [h5py.File(filepaths[j][i],"r") for j in range(len(filepaths))];
                     
-                    with h5py.File(self.file_names[0][i],"r") as file:
+                    with h5py.File(filepaths[0][i],"r") as file:
                         num_slices = np.array(file['target']).shape[0];
                         self.data += [(row, i) for i in range(num_slices)]
                         self.volume_indices[base_file_name] = range(current_slice_number, current_slice_number + num_slices)

@@ -342,7 +342,7 @@ class Engine(ABC, DataDimensionality):
             if iter_idx == 0:
                 self.log_first_training_example_and_model(data)
 
-            if start_with_validation and iter_idx == start_iter:
+            if start_with_validation:
                 self.logger.info(f"Starting with validation at iteration: {iter_idx}.")
                 validation_func(iter_idx)
             try:
@@ -500,7 +500,7 @@ class Engine(ABC, DataDimensionality):
             sys.exit(-1)
         for data, iter_idx in zip(data_loader, range(start_iter, total_iter)):
 
-            if start_with_validation and iter_idx == start_iter:
+            if start_with_validation:
                 self.logger.info(f"Starting with validation at iteration: {iter_idx}.")
                 validation_func(iter_idx)
             try:
