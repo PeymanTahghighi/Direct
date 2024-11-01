@@ -154,6 +154,8 @@ def build_training_datasets_from_environment(
         dataset_args.update({'data_type': data_type});
         dataset_args.update({'data_cache_tranform': train_transforms if data_type=='val' else None});
         dataset_args.update({'validation_data_type': validation_data_type});
+        if metamodel is False:
+            dataset_args.update({'accelerations':dataset_config.transforms.masking.accelerations[0]})
         if metamodel:
             dataset_args.update({'validation_transforms': val_transforms});
         dataset = build_dataset_from_input(**dataset_args)

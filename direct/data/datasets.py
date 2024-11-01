@@ -260,6 +260,7 @@ class FastMRIDataset(H5SliceData):
         pass_h5s: Optional[dict] = None,
         data_type = 'train',
         validation_data_type = 'normal',
+        accelerations = 4,
         **kwargs,
     ) -> None:
         # TODO: Clean up Dataset class such that only **kwargs need to get parsed.
@@ -283,7 +284,8 @@ class FastMRIDataset(H5SliceData):
             pass_dictionaries=kwargs.get("pass_dictionaries", None),
             data_type=data_type,
             data_cache_tranform = data_cache_tranform,
-            validation_data_type = validation_data_type
+            validation_data_type = validation_data_type,
+            accelerations = accelerations
         )
         if self.sensitivity_maps is not None:
             raise NotImplementedError(
