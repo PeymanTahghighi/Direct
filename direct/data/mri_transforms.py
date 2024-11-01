@@ -872,33 +872,13 @@ class NormlaizeImageSpace(DirectTransform):
     
     def __call__(self, sample: dict[str, Any]):
         sample_keys = list(sample.keys());
-        inputs = dict();
 
         for key in sample_keys:
             if 'input' in key or 'target' in key:
                 recon = sample[key];
-                
-
-                if key == 'target':
-                    sample['target_scaling_factor'] = [recon.min(), recon.max()];
-                    recon -= recon.min()
-                    recon /= recon.max()
-                    sample[key] = recon;
-                    continue;
-        
-                inputs[key] = recon;
-        inputs_np = [inputs[k] for k in inputs.keys()];
-        inputs_np = np.concatenate([*inputs_np], axis= 0);
-        inputs_mean = np.mean(inputs_np);
-        inputs_std = np.std(inputs_np);
-        sample['output_scaling_factor'] = [inputs_mean, inputs_std]
-        inputs_np = (inputs_np - inputs_mean) / inputs_std;
-        inputs_mean = np.mean(inputs_np);
-        inputs_std = np.std(inputs_np);
-        for k in inputs.keys():
-            recon = inputs[k];
-            normalized_recon = (recon - inputs_mean ) / inputs_std;
-            sample[k] = normalized_recon;
+                recon -= recon.min()
+                recon /= recon.max()
+                sample[key] = recon;
         return sample;
         
 

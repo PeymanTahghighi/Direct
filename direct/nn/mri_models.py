@@ -1007,8 +1007,6 @@ class MRIModelEngine(Engine):
             output = iteration_output.output_image.cpu()
             loss_dict = iteration_output.data_dict
             target = data['target'];
-            target = target * data['target_scaling_factor'][1] + data['target_scaling_factor'][0]
-            output = output * data['output_scaling_factor'][1] + data['output_scaling_factor'][0]
 
             if curr_volume is None:
                 volume_size = len(data_loader.dataset.volume_indices[filename])  # type: ignore

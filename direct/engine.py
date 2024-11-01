@@ -635,8 +635,8 @@ class Engine(ABC, DataDimensionality):
         for curr_validation_dataset in validation_datasets:
 
             curr_dataset_name = curr_validation_dataset.text_description
-            # if full is False and curr_dataset_name != 'FastMRI-brain':
-            #     continue;
+            if full is False and curr_dataset_name != 'FastMRI-brain':
+                continue;
             
             self.logger.info("Evaluating: %s...", curr_dataset_name)
             self.logger.info("Building dataloader for dataset: %s.", curr_dataset_name)
