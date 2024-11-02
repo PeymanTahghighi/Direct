@@ -39,8 +39,32 @@ def main():
     print(args);
     args.subcommand(args)
 
-
+import torch
+import segmentation_models_pytorch as smp
 if __name__ == "__main__":
+    model = smp.Unet(
+            encoder_name = 'resnet50',
+            encoder_weights = None,
+            decoder_channels = (512,256,128,64,32),
+            in_channels = 3)
+    
+    
+    weights = torch.load('pretrained_weights/resnet50-19c8e357.pth');
+    model.encoder.load_state_dict(weights);
+
+    for module in model.modules():
+        if isinstance(module, torch.nn.Conv2d) and module.in_channels == 3:
+            break;
+    weight = module.weight.detach();
+    module.in_channels = 2;
+    new_weight = torch.nn.parameter.Parameter(torch.Tensor(
+        module.out_channels,
+        2,
+        *module.kernel_size
+    ))
+    module.weight = new_weight;
+    print(module.weight.shape);
+
     # import matplotlib.pyplot as plt
     # import h5py
     # import numpy

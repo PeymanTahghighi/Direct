@@ -521,20 +521,36 @@ class Unet2dImageSpace(nn.Module):
         elif model_type == 'smp':
             self.model = smp.Unet(
             encoder_name = 'resnet50',
+            encoder_weights = None,
             decoder_channels = (512,256,128,64,32),
-            in_channels = num_inputs)
+            in_channels = 3)
+    
+    
+            weights = torch.load('pretrained_weights/resnet50-19c8e357.pth');
+            self.model.encoder.load_state_dict(weights);
+
+            for module in self.model.modules():
+                if isinstance(module, torch.nn.Conv2d) and module.in_channels == 3:
+                    break;
+
+            module.in_channels = num_inputs;
+            new_weight = torch.nn.parameter.Parameter(torch.Tensor(
+                module.out_channels,
+                num_inputs,
+                *module.kernel_size
+            ))
+            
+            module.weight = nn.parameter.Parameter(new_weight)
+
 
         elif model_type == 'pytorch':
-            self.model = self.model = torch.hub.load(
+            self.model = torch.hub.load(
             'mateuszbuda/brain-segmentation-pytorch', 'unet', in_channels = num_inputs, out_channels=1, init_features=32, pretrained=False
             )
-            model_weights = torch.hub.load(
-            'mateuszbuda/brain-segmentation-pytorch', 'unet', pretrained=True
-            )
-            state_dict = model_weights.state_dict();
-            state_dict.pop('encoder1.enc1conv1.weight')
-            self.model.load_state_dict(state_dict, strict=False);
-        
+            model_weights = torch.load('pretrained_weights/unet-e012d006.pt');
+            model_weights.pop('encoder1.enc1conv1.weight')
+            self.model.load_state_dict(model_weights, strict=False);
+
         self.final_activations = final_activations;
     def forward(
         self,
