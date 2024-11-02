@@ -631,15 +631,19 @@ class Unet2dImageSpace(nn.Module):
             for module in self.model.modules():
                 if isinstance(module, torch.nn.Conv2d) and module.in_channels == 3:
                     break;
-
+            weight = module.weight.detach();
             module.in_channels = num_inputs;
-            new_weight = torch.nn.parameter.Parameter(torch.Tensor(
-                module.out_channels,
-                num_inputs,
-                *module.kernel_size
-            ))
-            
+
+            new_weight = torch.Tensor(
+            module.out_channels, num_inputs // module.groups, *module.kernel_size
+            )
+
+            for i in range(num_inputs):
+                new_weight[:, i] = weight[:, i % 3]
+
+            new_weight = new_weight * (3 / num_inputs)
             module.weight = nn.parameter.Parameter(new_weight)
+
 
 
         elif model_type == 'pytorch':

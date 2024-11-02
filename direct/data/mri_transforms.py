@@ -893,8 +893,8 @@ class PaddImageSpace(DirectTransform):
             if 'input' in key or 'target' in key:
                 img = sample[key]
                 d,h,w, = img.shape;
-                new_h = h if h%self.padd == 0 else self.padd * (h//self.padd+1);
-                new_w = w if w%self.padd == 0 else self.padd * (w//self.padd+1);
+                new_h = h if h%self.padd == 0 else self.padd * ((h//self.padd)+1);
+                new_w = w if w%self.padd == 0 else self.padd * ((w//self.padd)+1);
                 new_img = np.zeros((d, new_h, new_w), dtype=img.dtype);
                 new_img[:,:h,:w] = img;
                 sample[key] = new_img;
@@ -1752,6 +1752,15 @@ class ToTensor(DirectTransform):
             sample["loglikelihood_scaling"] = torch.from_numpy(np.asarray(sample["loglikelihood_scaling"])).float()
         if 'input' in sample:
             sample['input'] = torch.from_numpy(sample['input']).float();
+        
+        if 'input0' in sample:
+            sample['input0'] = torch.from_numpy(sample['input0']).float();
+        if 'input1' in sample:
+            sample['input1'] = torch.from_numpy(sample['input1']).float();
+        if 'input2' in sample:
+            sample['input2'] = torch.from_numpy(sample['input2']).float();
+        if 'input3' in sample:
+            sample['input3'] = torch.from_numpy(sample['input3']).float();
         return sample
 
 
