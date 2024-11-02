@@ -880,6 +880,26 @@ class NormlaizeImageSpace(DirectTransform):
                 recon /= recon.max()
                 sample[key] = recon;
         return sample;
+
+class PaddImageSpace(DirectTransform):
+    def __init__(self, padd):
+        super().__init__()
+        self.padd = padd;
+    
+    def __call__(self, sample: dict[str, Any]):
+        sample_keys = list(sample.keys());
+
+        for key in sample_keys:
+            if 'input' in key or 'target' in key:
+                img = sample[key]
+                d,h,w, = img.shape;
+                new_h = h if h%self.padd == 0 else self.padd * (h//self.padd+1);
+                new_w = w if w%self.padd == 0 else self.padd * (w//self.padd+1);
+                new_img = np.zeros((d, new_h, new_w), dtype=img.dtype);
+                new_img[:,:h,:w] = img;
+                sample[key] = new_img;
+
+        return sample;
         
 
 class ComputeImageModule(DirectModule):
@@ -2284,7 +2304,9 @@ def build_supervised_mri_transforms(
 
 def build_imagepsace_transforms(
    to_tensor = True,
-   normalize = True
+   normalize = True,
+   padd = True,
+   padd_size = 32
 ) -> DirectTransform:
     r"""Builds supervised MRI transforms.
 
@@ -2294,11 +2316,13 @@ def build_imagepsace_transforms(
         An MRI transformation object.
     """
     image_space_transforms: list[Callable] = [];
-    if to_tensor:
-        image_space_transforms: list[Callable] = [ToTensor()]
-
     if normalize:
         image_space_transforms += [NormlaizeImageSpace()];
+    if padd:
+        image_space_transforms += [PaddImageSpace(padd_size)]
+    if to_tensor:
+        image_space_transforms += [ToTensor()]
+
 
     return Compose(image_space_transforms)
 

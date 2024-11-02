@@ -462,7 +462,7 @@ class ImageSpaceDataset(Dataset):
         if self.data_type == 'train':
             sample = self.train_transforms(sample);
         else:
-            self.valid_transforms(sample);
+            sample = self.valid_transforms(sample);
         return sample;
 
 
