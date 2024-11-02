@@ -40,8 +40,8 @@ class Unet2dImageSpaceConfig(ModelConfig):
     dropout_probability: float = 0.0
     normalized: bool = False
     num_inputs: int = 1
-
-
+    model_type: str = 'default'
+    final_activations: str = 'relu'
 
 @dataclass
 class UnetModel3dConfig(ModelConfig):

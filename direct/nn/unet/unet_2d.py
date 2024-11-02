@@ -8,7 +8,7 @@ from typing import Callable, List, Optional, Tuple
 import torch
 from torch import nn
 from torch.nn import functional as F
-
+import segmentation_models_pytorch as smp
 from direct.data import transforms as T
 from direct.nn.types import InitType
 
@@ -214,7 +214,6 @@ class UnetModel2d(nn.Module):
 
             output = torch.cat([output, downsample_layer], dim=1)
             output = conv(output)
-        output = F.relu(output);
         return output
 
 
@@ -471,6 +470,8 @@ class Unet2dImageSpace(nn.Module):
         forward_operator: Callable = None,
         backward_operator: Callable = None,
         num_inputs: int = 1,
+        model_type='default',
+        final_activations = 'relu',
         **kwargs,
     ):
         """Inits :class:`Unet2dImageSpace`.
@@ -489,32 +490,52 @@ class Unet2dImageSpace(nn.Module):
             If True, Normalized Unet is used. Default: False.
         kwargs: dict
         """
+
         super().__init__()
         extra_keys = kwargs.keys()
-        for extra_key in extra_keys:
-            if extra_key not in [
-                "sensitivity_map_model",
-                "model_name",
-            ]:
-                raise ValueError(f"{type(self).__name__} got key `{extra_key}` which is not supported.")
-        self.unet: nn.Module
-        if normalized:
-            self.unet = NormUnetModel2d(
-                in_channels=num_inputs,
-                out_channels=1,
-                num_filters=num_filters,
-                num_pool_layers=num_pool_layers,
-                dropout_probability=dropout_probability,
-            )
-        else:
-            self.unet = UnetModel2d(
-                in_channels=num_inputs,
-                out_channels=1,
-                num_filters=num_filters,
-                num_pool_layers=num_pool_layers,
-                dropout_probability=dropout_probability,
-            )
+        if model_type == 'default':
+            for extra_key in extra_keys:
+                if extra_key not in [
+                    "sensitivity_map_model",
+                    "model_name",
+                ]:
+                    raise ValueError(f"{type(self).__name__} got key `{extra_key}` which is not supported.")
+            self.model: nn.Module
+            if normalized:
+                self.model = NormUnetModel2d(
+                    in_channels=num_inputs,
+                    out_channels=1,
+                    num_filters=num_filters,
+                    num_pool_layers=num_pool_layers,
+                    dropout_probability=dropout_probability,
+                )
+            else:
+                self.model = UnetModel2d(
+                    in_channels=num_inputs,
+                    out_channels=1,
+                    num_filters=num_filters,
+                    num_pool_layers=num_pool_layers,
+                    dropout_probability=dropout_probability,
+                )
 
+        elif model_type == 'smp':
+            self.model = smp.Unet(
+            encoder_name = 'resnet50',
+            decoder_channels = (512,256,128,64,32),
+            in_channels = num_inputs)
+
+        elif model_type == 'pytorch':
+            self.model = self.model = torch.hub.load(
+            'mateuszbuda/brain-segmentation-pytorch', 'unet', in_channels = num_inputs, out_channels=1, init_features=32, pretrained=False
+            )
+            model_weights = torch.hub.load(
+            'mateuszbuda/brain-segmentation-pytorch', 'unet', pretrained=True
+            )
+            state_dict = model_weights.state_dict();
+            state_dict.pop('encoder1.enc1conv1.weight')
+            self.model.load_state_dict(state_dict, strict=False);
+        
+        self.final_activations = final_activations;
     def forward(
         self,
         input_images: torch.Tensor,
@@ -534,5 +555,12 @@ class Unet2dImageSpace(nn.Module):
             Output image of shape (N, height, width, complex=2).
         """
         input_image = torch.cat([*input_images], dim = 1)
-        output = self.unet(input_image)
+        output = self.model(input_image)
+
+        if self.final_activations == 'relu':
+            output = F.relu(output);
+        elif self.final_activations == 'abs':
+            output = torch.abs(output);
+        elif self.final_activations == 'sigmoid':
+            output = F.sigmoid(output);
         return output

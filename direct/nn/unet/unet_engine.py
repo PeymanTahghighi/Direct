@@ -84,7 +84,6 @@ class Unet2dImageSpaceEngine(MRIModelEngine):
         output_image = self.model(input_images=inputs)
         return output_image
 
-
 class Unet2dEngine(MRIModelEngine):
     """Unet2d Model Engine.
 
