@@ -172,6 +172,8 @@ class H5SliceData(Dataset):
         
         if self.accelerations == 2:
             self.acc_postfix = '_2x';
+        else:
+            self.acc_postfix = ''
     
     def cache_validation(self, filepaths, transforms, base_root, data_type):
         current_slice_number = 0

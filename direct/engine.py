@@ -190,6 +190,8 @@ class Engine(ABC, DataDimensionality):
         batch_size: int = 1,
         crop: Optional[str] = None,
     ) -> List[np.ndarray]:
+        
+        
         self.logger.info("Predicting...")
         torch.cuda.empty_cache()
         self.ndim = dataset.ndim  # type: ignore

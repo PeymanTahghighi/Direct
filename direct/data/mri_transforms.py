@@ -866,7 +866,7 @@ class ReconstructionType(DirectEnum):
     SENSE = "sense"
     SENSE_MOD = "sense_mod"
 
-class NormlaizeImageSpace(DirectTransform):
+class NormalizeImageSpace(DirectTransform):
     def __init__(self):
         super().__init__()
     
@@ -2326,7 +2326,7 @@ def build_imagepsace_transforms(
     """
     image_space_transforms: list[Callable] = [];
     if normalize:
-        image_space_transforms += [NormlaizeImageSpace()];
+        image_space_transforms += [NormalizeImageSpace()];
     if padd:
         image_space_transforms += [PaddImageSpace(padd_size)]
     if to_tensor:
