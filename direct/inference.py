@@ -11,7 +11,7 @@ from omegaconf import DictConfig
 
 from direct.utils.dataset import get_filenames_for_datasets
 from direct.data.datasets import build_dataset_from_input
-from direct.data.mri_transforms import build_mri_transforms
+from direct.data.mri_transforms import build_mri_transforms, build_imagepsace_transforms
 from direct.environment import setup_inference_environment
 from direct.types import FileOrUrl, PathOrString
 from direct.utils import chunks, dict_flatten, remove_keys
@@ -40,6 +40,7 @@ def setup_inference_save_to_h5(
     mixed_precision: bool = False,
     debug: bool = False,
     is_validation: bool = False,
+    metamodel: bool = False
     
 ) -> None:
     """This function contains most of the logic in DIRECT required to launch a multi-gpu / multi-node inference process.
@@ -89,18 +90,19 @@ def setup_inference_save_to_h5(
         run_name, base_directory, device, machine_rank, mixed_precision, cfg_file, debug=debug
     )
 
-    dataset_cfg, transforms = get_inference_settings(env)
+    dataset_cfg, transforms = get_inference_settings(env, metamodel = metamodel)
 
     torch.backends.cudnn.benchmark = True
     logger.info(f"Predicting dataset and saving in: {output_directory}.")
 
     datasets = []
     for idx, (transform, cfg) in enumerate(zip(transforms, dataset_cfg)):
-        if cfg.transforms.masking is None:  # type: ignore
-            logger.info(
-                "Masking function set to None for %s.",
-                dataset_config.text_description,  # type: ignore
-            )
+        if metamodel is False:
+            if cfg.transforms.masking is None:  # type: ignore
+                logger.info(
+                    "Masking function set to None for %s.",
+                    dataset_config.text_description,  # type: ignore
+                )
 
         dataset_args = {"transforms": transform, "dataset_config": cfg}
         
@@ -115,6 +117,8 @@ def setup_inference_save_to_h5(
             dataset_args.update({"filenames_filter": filenames_filter})   
         dataset_args.update({'data_type': cfg.set_type});
         dataset_args.update({'validation_data_type': 'inference'});
+
+        dataset_args.update({"validation_transforms": transform})
         dataset = build_dataset_from_input(**dataset_args)
 
         datasets.append(dataset)
@@ -141,6 +145,7 @@ def setup_inference_save_to_h5(
             num_workers=num_workers,
             batch_size=batch_size,
             crop=crop,
+            metamodel=metamodel
         )
 
         # Perhaps aggregation to the main process would be most optimal here before writing.
@@ -163,6 +168,13 @@ def build_inference_transforms(env, mask_func: Callable, dataset_cfg: DictConfig
     transforms = partial_build_mri_transforms(**dict_flatten(remove_keys(dataset_cfg.transforms, "masking")))
     return transforms
 
+def build_imagespace_transforms_from_environment(env) -> Callable:
+   
+    imagespace_transforms_valid_func = partial(
+        build_imagepsace_transforms,
+    )
+    return imagespace_transforms_valid_func()  # type: ignore
+
 
 def inference_on_environment(
     env,
@@ -172,6 +184,7 @@ def inference_on_environment(
     num_workers: int = 0,
     batch_size: int = 1,
     crop: Optional[str] = None,
+    metamodel: bool = False
 ) -> Union[Dict, DefaultDict]:
     """Performs inference on environment.
 
@@ -212,5 +225,6 @@ def inference_on_environment(
         crop=crop,
         num_workers = env.cfg.inference.num_workers,
         prefetch_factor = env.cfg.inference.prefetch_factor,
+        metamodel = metamodel
     )
     return output

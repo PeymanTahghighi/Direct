@@ -9,21 +9,25 @@ import os
 import torch
 
 from direct.common.subsample import build_masking_function
-from direct.inference import build_inference_transforms, setup_inference_save_to_h5
+from direct.inference import build_inference_transforms, setup_inference_save_to_h5, build_imagespace_transforms_from_environment
 from direct.launch import launch
 from direct.utils import set_all_seeds
 
 logger = logging.getLogger(__name__)
 
 
-def _get_transforms(env):
+def _get_transforms(env, metamodel: bool = False):
     dataset_cfgs = env.cfg.inference.datasets
     ret_transforms = [];
     for cfg in dataset_cfgs:
-        masking = cfg.transforms.masking  # Can be None
-        mask_func = None if masking is None else build_masking_function(**masking)
-        transforms = build_inference_transforms(env, mask_func, cfg)
-        ret_transforms.append(transforms);
+        if metamodel is False:
+            masking = cfg.transforms.masking  # Can be None
+            mask_func = None if masking is None else build_masking_function(**masking)
+            transforms = build_inference_transforms(env, mask_func, cfg)
+            ret_transforms.append(transforms);
+        else:
+            infer_transforms = build_imagespace_transforms_from_environment(env);
+            ret_transforms.append(infer_transforms);
     return dataset_cfgs, ret_transforms
 
 
@@ -65,4 +69,5 @@ def predict_from_argparse(args: argparse.Namespace):
         args.mixed_precision,
         args.debug,
         False,
+        args.metamodel
     )

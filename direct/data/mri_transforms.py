@@ -29,6 +29,9 @@ from direct.types import DirectEnum, IntegerListOrTupleString, KspaceKey, Transf
 from direct.utils import DirectModule, DirectTransform
 from direct.utils.asserts import assert_complex
 from torchvision.transforms import transforms
+from skimage.filters import prewitt, threshold_otsu, sobel, roberts, scharr, threshold_li
+from skimage.morphology import binary_closing
+from copy import copy
 
 logger = logging.getLogger(__name__)
 
@@ -881,6 +884,45 @@ class NormalizeImageSpace(DirectTransform):
                 sample[key] = recon;
         return sample;
 
+class MaskBrainImageSpace(DirectTransform):
+    def __init__(self):
+        super().__init__();
+
+    def __call__(self, sample: dict[str, Any]):
+         #we first create masks from all the input and then get their union
+        masks = [];
+        for key in sample:
+            if 'input' in key:
+                cur_rec = sample[key].squeeze();
+                edges_thresh = cur_rec > threshold_li(cur_rec,)
+                footprint= np.ones((1, 51))
+                edges_close = binary_closing(edges_thresh, footprint);
+                footprint= np.ones((21, 1))
+                edges_close = binary_closing(edges_close, footprint);
+
+                mask = np.ones_like(cur_rec);
+
+                for r in range((mask.shape[0])):
+                    if np.sum(edges_close[r,:]) > 0:
+                        mask_row = np.where(edges_close[r,:] > 0);
+                        first_col = mask_row[0][0];
+                        last_col = mask_row[0][-1];
+                        mask[r,:first_col] = 0;
+                        mask[r,last_col:] = 0;
+                    else:
+                        mask[r,:]=0
+                masks.append(mask);
+        mask = np.array(masks);
+        mask = np.sum(mask, axis = 0);
+        mask = np.minimum(mask, np.ones_like(mask));
+        sample['mask'] = mask;
+        
+        for key in sample:
+            if 'input' in key or 'target' in key:
+                sample[key] *= sample['mask'];
+        return sample;
+                
+            
 class PaddImageSpace(DirectTransform):
     def __init__(self, padd):
         super().__init__()
@@ -2315,7 +2357,8 @@ def build_imagepsace_transforms(
    to_tensor = True,
    normalize = True,
    padd = True,
-   padd_size = 32
+   padd_size = 32,
+   mask_brain = True
 ) -> DirectTransform:
     r"""Builds supervised MRI transforms.
 
@@ -2325,6 +2368,8 @@ def build_imagepsace_transforms(
         An MRI transformation object.
     """
     image_space_transforms: list[Callable] = [];
+    if mask_brain:
+        image_space_transforms += [MaskBrainImageSpace()];
     if normalize:
         image_space_transforms += [NormalizeImageSpace()];
     if padd:

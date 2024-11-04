@@ -189,6 +189,7 @@ class Engine(ABC, DataDimensionality):
         prefetch_factor: int = 1,
         batch_size: int = 1,
         crop: Optional[str] = None,
+        metamodel: bool = False
     ) -> List[np.ndarray]:
         
         
@@ -218,7 +219,10 @@ class Engine(ABC, DataDimensionality):
         # TODO: Batch size can be much larger, perhaps have a different batch size during evaluation.
         data_loader = self.build_loader(dataset, batch_sampler=batch_sampler, num_workers=num_workers,
             prefetch_factor = prefetch_factor)
-        output = list(self.reconstruct_volumes(data_loader, add_target=True, crop=crop))
+        if metamodel is False:
+            output = list(self.reconstruct_volumes(data_loader, add_target=True, crop=crop))
+        else:
+            output = list(self.reconstruct_volumes_metamodel(data_loader, add_target=True, crop=crop))
 
         return output
 
@@ -917,6 +921,10 @@ class Engine(ABC, DataDimensionality):
 
     @abstractmethod
     def reconstruct_volumes(self, *args, **kwargs):  # noqa
+        pass
+
+    @abstractmethod
+    def reconstruct_volumes_metamodel(self, *args, **kwargs):  # noqa
         pass
 
     @abstractmethod

@@ -13,6 +13,10 @@ import torch
 from direct.functionals.challenges import fastmri_ssim
 import torch.nn as nn
 import torch.nn.functional as F
+from skimage.filters import prewitt, threshold_otsu, sobel, roberts, scharr,threshold_li
+from skimage.morphology import binary_closing
+import numpy as np
+from copy import copy
 
 class SSIMLoss(nn.Module):
     """SSIM loss module as implemented in [1]_.
@@ -114,7 +118,8 @@ def main():
     # Data related comments.
     register_upload_subcommand(root_subparsers)
 
-    args = root_parser.parse_args(['predict','--cfg', 'configs/base_varnet.yaml', '--checkpoint', 'model_dircn.pt', '--output_directory', 'test'])
+    args = root_parser.parse_args(['train','--cfg', 'configs/metamodel.yaml', '--metamodel'])
+    #args = root_parser.parse_args(['predict','--cfg', 'configs/metamodel.yaml', '--checkpoint', 'experiments/smp/model_480000.pt', '--output_directory', 'test', '--metamodel'])
    # args = root_parser.parse_args(['predict','--cfg', 'configs/base_varnet_predict.yaml', '--checkpoint', 'experiments/base_varnet/model_500000.pt', '--output_directory', 'test'])
     print(args);
     args.subcommand(args)
@@ -125,19 +130,43 @@ if __name__ == "__main__":
     # import h5py
     # import numpy
     # ls = SSIMLoss();
-    # with h5py.File('inference\\dircn_equispaced_inference_equispaced_valid\\brain\\file_brain_AXFLAIR_200_6002428.h5') as f:
-    #     rec = torch.from_numpy(numpy.array(f['reconstruction']));
-    #     tar = torch.from_numpy(numpy.array(f['target']));
+    # with h5py.File('inference/dircn_equispaced_inference_equispaced_valid/brain/file_brain_AXFLAIR_200_6002428.h5') as f:
+    #     rec = numpy.array(f['reconstruction']);
+    #     tar = numpy.array(f['target']);
+                               
+    #     for i in range(rec.shape[0]):
+    #         fig, ax = plt.subplots(1,3);
+    #         cur_rec = copy(rec[i]);
 
-    #     # rec = rec;
-    #     # rec -= rec.min()
-    #     # rec /= rec.max()
+    #         edges_thresh = cur_rec > threshold_li(cur_rec)
+    #         footprint= np.ones((1, 51))
+    #         edges_close = binary_closing(edges_thresh, footprint);
+    #         footprint= np.ones((21, 1))
+    #         edges_close = binary_closing(edges_close, footprint);
 
-    #     # tar = tar;
-    #     # tar -= tar.min()
-    #     # tar /= tar.max()
+    #         mask = np.ones_like(cur_rec);
 
-    #     ssim = fastmri_ssim(tar.unsqueeze(1), rec.unsqueeze(1));
+    #         for r in range((mask.shape[0])):
+    #             if np.sum(edges_close[r,:]) > 0:
+    #                 mask_row = np.where(edges_close[r,:] > 0);
+    #                 first_col = mask_row[0][0];
+    #                 last_col = mask_row[0][-1];
+    #                 mask[r,:first_col] = 0;
+    #                 mask[r,last_col:] = 0;
+    #             else:
+    #                 mask[r,:]=0
+
+    #         rec[i] = rec[i] * mask;
+    #         tar[i] = tar[i] * mask;
+    #         # ax[0].imshow(cur_rec, cmap = 'gray');
+    #         # ax[0].set_title('rec');
+    #         # ax[1].imshow(edges_close, cmap = 'gray');
+    #         # ax[2].imshow(rec[i], cmap = 'gray');
+    #         # plt.show();
+
+        
+
+    #     ssim = fastmri_ssim(torch.from_numpy(tar).unsqueeze(1), torch.from_numpy(rec).unsqueeze(1));
     #     print(ssim);
 
     main()

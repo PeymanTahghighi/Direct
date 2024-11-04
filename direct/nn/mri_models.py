@@ -877,7 +877,7 @@ class MRIModelEngine(Engine):
 
             iteration_output = self._do_iteration(data, loss_fns=loss_fns, regularizer_fns=regularizer_fns)
 
-
+            scaling_factor = data['scaling_factor'];
             output = iteration_output.output_image
             loss_dict = iteration_output.data_dict
 
