@@ -811,8 +811,6 @@ class Engine(ABC, DataDimensionality):
         elif initialization:
             self.logger.info(f"Initializing from {initialization}...")
             self.checkpointer.load_models_from_file(initialization)
-            start_with_validation = True
-            self.logger.info("Setting start_with_validation to True.")
 
         if "__version__" in checkpoint:
             self.logger.info(f"DIRECT version of checkpoint: {checkpoint['__version__']}.")
