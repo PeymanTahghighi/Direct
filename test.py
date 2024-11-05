@@ -118,8 +118,8 @@ def main():
     # Data related comments.
     register_upload_subcommand(root_subparsers)
 
+    #args = root_parser.parse_args(['train','--cfg', 'configs/base_varnet.yaml', '--validation-only'])
     args = root_parser.parse_args(['train','--cfg', 'configs/metamodel.yaml', '--metamodel'])
-    #args = root_parser.parse_args(['predict','--cfg', 'configs/metamodel.yaml', '--checkpoint', 'experiments/smp/model_480000.pt', '--output_directory', 'test', '--metamodel'])
    # args = root_parser.parse_args(['predict','--cfg', 'configs/base_varnet_predict.yaml', '--checkpoint', 'experiments/base_varnet/model_500000.pt', '--output_directory', 'test'])
     print(args);
     args.subcommand(args)
@@ -130,7 +130,7 @@ if __name__ == "__main__":
     # import h5py
     # import numpy
     # ls = SSIMLoss();
-    # with h5py.File('inference/dircn_equispaced_inference_equispaced_valid/brain/file_brain_AXFLAIR_200_6002428.h5') as f:
+    # with h5py.File('inference/dircn_equispaced_inference_equispaced_train/nyu/0e4365a8-a975-437a-95f4-35bcde5da5f1.h5') as f:
     #     rec = numpy.array(f['reconstruction']);
     #     tar = numpy.array(f['target']);
                                
@@ -158,11 +158,11 @@ if __name__ == "__main__":
 
     #         rec[i] = rec[i] * mask;
     #         tar[i] = tar[i] * mask;
-    #         # ax[0].imshow(cur_rec, cmap = 'gray');
-    #         # ax[0].set_title('rec');
-    #         # ax[1].imshow(edges_close, cmap = 'gray');
-    #         # ax[2].imshow(rec[i], cmap = 'gray');
-    #         # plt.show();
+    #         ax[0].imshow(cur_rec, cmap = 'gray');
+    #         ax[0].set_title('rec');
+    #         ax[1].imshow(edges_close, cmap = 'gray');
+    #         ax[2].imshow(rec[i], cmap = 'gray');
+    #         plt.show();
 
         
 

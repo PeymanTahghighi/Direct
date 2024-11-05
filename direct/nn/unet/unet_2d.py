@@ -593,29 +593,37 @@ class Unet2dImageSpace(nn.Module):
         super().__init__()
         extra_keys = kwargs.keys()
         if model_type == 'default':
-            for extra_key in extra_keys:
-                if extra_key not in [
-                    "sensitivity_map_model",
-                    "model_name",
-                ]:
-                    raise ValueError(f"{type(self).__name__} got key `{extra_key}` which is not supported.")
-            self.model: nn.Module
-            if normalized:
-                self.model = NormUnetModel2d(
-                    in_channels=num_inputs,
-                    out_channels=1,
-                    num_filters=num_filters,
-                    num_pool_layers=num_pool_layers,
-                    dropout_probability=dropout_probability,
-                )
-            else:
-                self.model = UnetModel2d(
-                    in_channels=num_inputs,
-                    out_channels=1,
-                    num_filters=num_filters,
-                    num_pool_layers=num_pool_layers,
-                    dropout_probability=dropout_probability,
-                )
+            # for extra_key in extra_keys:
+            #     if extra_key not in [
+            #         "sensitivity_map_model",
+            #         "model_name",
+            #     ]:
+            #         raise ValueError(f"{type(self).__name__} got key `{extra_key}` which is not supported.")
+            # self.model: nn.Module
+            # if normalized:
+            #     self.model = NormUnetModel2d(
+            #         in_channels=num_inputs,
+            #         out_channels=1,
+            #         num_filters=num_filters,
+            #         num_pool_layers=num_pool_layers,
+            #         dropout_probability=dropout_probability,
+            #     )
+            # else:
+            #     self.model = UnetModel2d(
+            #         in_channels=num_inputs,
+            #         out_channels=1,
+            #         num_filters=num_filters,
+            #         num_pool_layers=num_pool_layers,
+            #         dropout_probability=dropout_probability,
+            #     )
+            self.model = nn.Sequential(
+                nn.Conv2d(in_channels=num_inputs, out_channels=16,
+                          kernel_size=1),
+                nn.BatchNorm2d(16),
+                nn.ReLU(),
+                nn.Conv2d(in_channels=16, out_channels=1,
+                          kernel_size=1)
+            )
 
         elif model_type == 'smp':
             self.model = smp.Unet(
