@@ -126,47 +126,47 @@ def main():
 
 if __name__ == "__main__":
 
-    # import matplotlib.pyplot as plt
-    # import h5py
-    # import numpy
-    # ls = SSIMLoss();
-    # with h5py.File('inference/dircn_equispaced_inference_equispaced_train/nyu/0e4365a8-a975-437a-95f4-35bcde5da5f1.h5') as f:
-    #     rec = numpy.array(f['reconstruction']);
-    #     tar = numpy.array(f['target']);
+    import matplotlib.pyplot as plt
+    import h5py
+    import numpy
+    ls = SSIMLoss();
+    with h5py.File('inference/dircn_equispaced_inference_equispaced_train/grem4raw/2022061001_GRE01.h5') as f:
+        rec = numpy.array(f['reconstruction']);
+        tar = numpy.array(f['target']);
                                
-    #     for i in range(rec.shape[0]):
-    #         fig, ax = plt.subplots(1,3);
-    #         cur_rec = copy(rec[i]);
+        for i in range(rec.shape[0]):
+            fig, ax = plt.subplots(1,3);
+            cur_rec = copy(rec[i]);
 
-    #         edges_thresh = cur_rec > threshold_li(cur_rec)
-    #         footprint= np.ones((1, 51))
-    #         edges_close = binary_closing(edges_thresh, footprint);
-    #         footprint= np.ones((21, 1))
-    #         edges_close = binary_closing(edges_close, footprint);
+            edges_thresh = cur_rec > threshold_li(cur_rec)
+            footprint= np.ones((1, 51))
+            edges_close = binary_closing(edges_thresh, footprint);
+            footprint= np.ones((21, 1))
+            edges_close = binary_closing(edges_close, footprint);
 
-    #         mask = np.ones_like(cur_rec);
+            mask = np.ones_like(cur_rec);
 
-    #         for r in range((mask.shape[0])):
-    #             if np.sum(edges_close[r,:]) > 0:
-    #                 mask_row = np.where(edges_close[r,:] > 0);
-    #                 first_col = mask_row[0][0];
-    #                 last_col = mask_row[0][-1];
-    #                 mask[r,:first_col] = 0;
-    #                 mask[r,last_col:] = 0;
-    #             else:
-    #                 mask[r,:]=0
+            for r in range((mask.shape[0])):
+                if np.sum(edges_close[r,:]) > 0:
+                    mask_row = np.where(edges_close[r,:] > 0);
+                    first_col = mask_row[0][0];
+                    last_col = mask_row[0][-1];
+                    mask[r,:first_col] = 0;
+                    mask[r,last_col:] = 0;
+                else:
+                    mask[r,:]=0
 
-    #         rec[i] = rec[i] * mask;
-    #         tar[i] = tar[i] * mask;
-    #         ax[0].imshow(cur_rec, cmap = 'gray');
-    #         ax[0].set_title('rec');
-    #         ax[1].imshow(edges_close, cmap = 'gray');
-    #         ax[2].imshow(rec[i], cmap = 'gray');
-    #         plt.show();
+            rec[i] = rec[i] * mask;
+            tar[i] = tar[i] * mask;
+            ax[0].imshow(cur_rec, cmap = 'gray');
+            ax[0].set_title('rec');
+            ax[1].imshow(edges_close, cmap = 'gray');
+            ax[2].imshow(rec[i], cmap = 'gray');
+            plt.show();
 
         
 
-    #     ssim = fastmri_ssim(torch.from_numpy(tar).unsqueeze(1), torch.from_numpy(rec).unsqueeze(1));
-    #     print(ssim);
+        ssim = fastmri_ssim(torch.from_numpy(tar).unsqueeze(1), torch.from_numpy(rec).unsqueeze(1));
+        print(ssim);
 
     main()

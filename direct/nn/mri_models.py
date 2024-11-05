@@ -884,7 +884,7 @@ class MRIModelEngine(Engine):
             # Output can be complex-valued, and has to be cropped. This holds for both output and target.
             output_abs = _process_output(
                 output,
-                None,
+                scaling_factor,
                 resolution=resolution,
                 complex_axis=self._complex_dim,
             )
@@ -893,7 +893,7 @@ class MRIModelEngine(Engine):
             if add_target:
                 target_abs = _process_output(
                     data["target"],
-                    None,
+                    scaling_factor,
                     resolution=resolution,
                     complex_axis=self._complex_dim,
                 )
