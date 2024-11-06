@@ -431,8 +431,27 @@ class ImageSpaceDataset(Dataset):
                     _ = [h5py.File(filepaths[j][i],"r") for j in range(len(filepaths))];
                     
                     with h5py.File(filepaths[0][i],"r") as file:
+                        rec = np.array(file['reconstruction']);
+                        tar = np.array(file['target']);
+
+                        mi_r1 = rec.min();
+                        ma_r1 = (rec - mi_r1).max()
+
+                        mi_t1 = tar.min();
+                        ma_t1 = (tar - mi_t1).max()
+                        
+                    with h5py.File(filepaths[1][i],"r") as file:
+                        rec = np.array(file['reconstruction']);
+                        tar = np.array(file['target']);
+
+                        mi_r2 = rec.min();
+                        ma_r2 = (rec - mi_r2).max()
+
+                        mi_t2 = tar.min();
+                        ma_t2 = (tar - mi_t2).max()
+
                         num_slices = np.array(file['target']).shape[0];
-                        self.data += [(row, i) for i in range(num_slices)]
+                        self.data += [(row, [mi_r1, ma_r1, mi_t1, ma_t1], [mi_r2, ma_r2, mi_t2, ma_t2], i) for i in range(num_slices)]
                         self.volume_indices[base_file_name] = range(current_slice_number, current_slice_number + num_slices)
                         current_slice_number += num_slices;
                 except OSError as exc:
@@ -453,12 +472,19 @@ class ImageSpaceDataset(Dataset):
         sample = dict();
         for i in range(len(self.data[index][0])):
             with h5py.File(self.data[index][0][i], 'r') as f:
-                sample[f'input{i}'] = np.array(f['reconstruction'])[self.data[index][1]][None,...];
+                sample[f'input{i}'] = np.array(f['reconstruction'])[self.data[index][-1]][None,...];
+                sample[f'input{i}'] -= self.data[index][i+1][0];
+                sample[f'input{i}'] /= self.data[index][i+1][1];
+
                 assert os.path.basename(self.data[index][0][0]) == os.path.basename(self.data[index][0][1])
+                assert self.data[index][1][2] == self.data[index][2][2]
+                assert self.data[index][1][3] == self.data[index][2][3]
                 if i == 0:
-                    sample['target'] = np.array(f['target'])[self.data[index][1]][None,...];
+                    sample['target'] = np.array(f['target'])[self.data[index][-1]][None,...];
+                    sample[f'target'] -= self.data[index][i+1][2];
+                    sample[f'target'] /= self.data[index][i+1][3];
                     sample['filename'] = self.data[index][0][i]
-            sample['slice_no'] = self.data[index][1];
+            sample['slice_no'] = self.data[index][-1];
         
         if self.data_type == 'train':
             sample = self.train_transforms(sample);

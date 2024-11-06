@@ -126,8 +126,24 @@ def main():
 
 def normalize(data):
     
-    # data -= data.min()
-    # data /= data.max()
+    temp_data = copy(data);
+    mi = temp_data.min();
+    ma = (temp_data - mi).max()
+
+    for i in range(temp_data.shape[0]):
+        temp_data[i] -= mi;
+        
+        temp_data[i] /= ma;
+
+    m = temp_data.min();
+    mi_d = data.min();
+    data -= data.min()
+    ma_d = data.max()
+    data /= data.max()
+
+    diff = np.sum(temp_data - data);
+
+    assert mi == mi_d and ma == ma_d;
 
 
     return data;
