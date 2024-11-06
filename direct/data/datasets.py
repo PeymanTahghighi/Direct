@@ -454,6 +454,7 @@ class ImageSpaceDataset(Dataset):
         for i in range(len(self.data[index][0])):
             with h5py.File(self.data[index][0][i], 'r') as f:
                 sample[f'input{i}'] = np.array(f['reconstruction'])[self.data[index][1]][None,...];
+                assert os.path.basename(self.data[index][0][0]) == os.path.basename(self.data[index][0][1])
                 if i == 0:
                     sample['target'] = np.array(f['target'])[self.data[index][1]][None,...];
                     sample['filename'] = self.data[index][0][i]

@@ -119,54 +119,71 @@ def main():
     register_upload_subcommand(root_subparsers)
 
     #args = root_parser.parse_args(['train','--cfg', 'configs/base_varnet.yaml', '--validation-only'])
-    args = root_parser.parse_args(['train','--cfg', 'configs/base_varnet.yaml', '--initialization-checkpoint', 'model_dircn.pt'])
+    args = root_parser.parse_args(['train','--cfg', 'configs/metamodel.yaml', '--metamodel'])
    # args = root_parser.parse_args(['predict','--cfg', 'configs/base_varnet_predict.yaml', '--checkpoint', 'experiments/base_varnet/model_500000.pt', '--output_directory', 'test'])
     print(args);
     args.subcommand(args)
 
+def normalize(data):
+    
+    # data -= data.min()
+    # data /= data.max()
+
+
+    return data;
 if __name__ == "__main__":
 
-    # import matplotlib.pyplot as plt
-    # import h5py
-    # import numpy
-    # ls = SSIMLoss();
-    # with h5py.File('inference/dircn_equispaced_inference_equispaced_train/grem4raw/2022061001_GRE01.h5') as f:
-    #     rec = numpy.array(f['reconstruction']);
-    #     tar = numpy.array(f['target']);
-                               
-    #     for i in range(rec.shape[0]):
-    #         fig, ax = plt.subplots(1,3);
-    #         cur_rec = copy(rec[i]);
 
-    #         edges_thresh = cur_rec > threshold_li(cur_rec)
-    #         footprint= np.ones((1, 51))
-    #         edges_close = binary_closing(edges_thresh, footprint);
-    #         footprint= np.ones((21, 1))
-    #         edges_close = binary_closing(edges_close, footprint);
+    import matplotlib.pyplot as plt
+    import h5py
+    import numpy
+    ls = SSIMLoss();
+    with h5py.File('inference/dircn_equispaced_inference_equispaced_train/brain/file_brain_AXT2_208_2080561.h5') as f:
+        rec1 = normalize(numpy.array(f['reconstruction']));
+        tar1 = normalize(numpy.array(f['target']));
+    
+    with h5py.File('inference/recurrentvarnet_equispaced_inference_equispaced_train/brain/file_brain_AXT2_208_2080561.h5') as f:
+        rec2 = normalize(numpy.array(f['reconstruction']));
+        tar2 = normalize(numpy.array(f['target']));
+    
+    ssim_between_targets = fastmri_ssim(torch.from_numpy(tar1).unsqueeze(1), torch.from_numpy(tar2).unsqueeze(1));
+    ssim_between_rec = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(rec2).unsqueeze(1));
+    ssim_between_one = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(tar1).unsqueeze(1));
+    ssim_between_two = fastmri_ssim(torch.from_numpy(rec2).unsqueeze(1), torch.from_numpy(tar2).unsqueeze(1));
 
-    #         mask = np.ones_like(cur_rec);
+    print(f'ssim_between_targets: {ssim_between_targets} \t ssim_between_rec: {ssim_between_rec}\t ssim_between_one: {ssim_between_one}\t ssim_between_two: {ssim_between_two}');
+        # for i in range(rec.shape[0]):
+        #     fig, ax = plt.subplots(1,3);
+        #     cur_rec = copy(rec[i]);
 
-    #         for r in range((mask.shape[0])):
-    #             if np.sum(edges_close[r,:]) > 0:
-    #                 mask_row = np.where(edges_close[r,:] > 0);
-    #                 first_col = mask_row[0][0];
-    #                 last_col = mask_row[0][-1];
-    #                 mask[r,:first_col] = 0;
-    #                 mask[r,last_col:] = 0;
-    #             else:
-    #                 mask[r,:]=0
+        #     edges_thresh = cur_rec > threshold_li(cur_rec)
+        #     footprint= np.ones((1, 51))
+        #     edges_close = binary_closing(edges_thresh, footprint);
+        #     footprint= np.ones((21, 1))
+        #     edges_close = binary_closing(edges_close, footprint);
 
-    #         rec[i] = rec[i] * mask;
-    #         tar[i] = tar[i] * mask;
-    #         ax[0].imshow(cur_rec, cmap = 'gray');
-    #         ax[0].set_title('rec');
-    #         ax[1].imshow(edges_close, cmap = 'gray');
-    #         ax[2].imshow(rec[i], cmap = 'gray');
-    #         plt.show();
+        #     mask = np.ones_like(cur_rec);
+
+        #     for r in range((mask.shape[0])):
+        #         if np.sum(edges_close[r,:]) > 0:
+        #             mask_row = np.where(edges_close[r,:] > 0);
+        #             first_col = mask_row[0][0];
+        #             last_col = mask_row[0][-1];
+        #             mask[r,:first_col] = 0;
+        #             mask[r,last_col:] = 0;
+        #         else:
+        #             mask[r,:]=0
+
+        #     rec[i] = rec[i] * mask;
+        #     tar[i] = tar[i] * mask;
+        #     ax[0].imshow(cur_rec, cmap = 'gray');
+        #     ax[0].set_title('rec');
+        #     ax[1].imshow(edges_close, cmap = 'gray');
+        #     ax[2].imshow(rec[i], cmap = 'gray');
+        #     plt.show();
 
         
 
-    #     ssim = fastmri_ssim(torch.from_numpy(tar).unsqueeze(1), torch.from_numpy(rec).unsqueeze(1));
-    #     print(ssim);
+        
 
     main()

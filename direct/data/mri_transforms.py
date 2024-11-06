@@ -2355,10 +2355,10 @@ def build_supervised_mri_transforms(
 
 def build_imagepsace_transforms(
    to_tensor = True,
-   normalize = True,
+   normalize = False,
    padd = True,
    padd_size = 32,
-   mask_brain = True
+   mask_brain = False
 ) -> DirectTransform:
     r"""Builds supervised MRI transforms.
 
