@@ -120,7 +120,7 @@ def main():
 
     #args = root_parser.parse_args(['train','--cfg', 'configs/base_varnet.yaml', '--validation-only'])
     args = root_parser.parse_args(['train','--cfg', 'configs/metamodel.yaml', '--metamodel'])
-   # args = root_parser.parse_args(['predict','--cfg', 'configs/base_varnet_predict.yaml', '--checkpoint', 'experiments/base_varnet/model_500000.pt', '--output_directory', 'test'])
+    #args = root_parser.parse_args(['predict','--cfg', 'configs/base_varnet_predict.yaml', '--checkpoint', 'experiments/base_varnet/model_500000.pt', '--output_directory', 'test'])
     print(args);
     args.subcommand(args)
 
@@ -134,52 +134,70 @@ def normalize(data, mi, ma):
 if __name__ == "__main__":
 
 
-    import matplotlib.pyplot as plt
-    import h5py
-    import numpy
-    ls = SSIMLoss();
-    with h5py.File('inference/dircn_equispaced_inference_equispaced_train/brain/file_brain_AXT2_208_2080561.h5') as f:
-        rec1 = numpy.array(f['reconstruction']);
-        tar1 = numpy.array(f['target']);
+    # import matplotlib.pyplot as plt
+    # import h5py
+    # import numpy
+    # ls = SSIMLoss();
+    # with h5py.File('inference/dircn_equispaced_inference_equispaced_train/brain/file_brain_AXT2_208_2080561.h5') as f:
+    #     rec1 = numpy.array(f['reconstruction']);
+    #     tar1 = numpy.array(f['target']);
     
-    with h5py.File('inference/recurrentvarnet_equispaced_inference_equispaced_train/brain/file_brain_AXT2_208_2080561.h5') as f:
-        rec2 = numpy.array(f['reconstruction']);
-        tar2 = numpy.array(f['target']);
+    # with h5py.File('inference/recurrentvarnet_equispaced_inference_equispaced_train/brain/file_brain_AXT2_208_2080561.h5') as f:
+    #     rec2 = numpy.array(f['reconstruction']);
+    #     tar2 = numpy.array(f['target']);
     
-    mi1 = rec1.min();
-    mi2 = rec2.min();
-    mi = (mi1 + mi2) / 2;
+    # mi1 = rec1.min();
+    # mi2 = rec2.min();
+    # mi = (mi1 + mi2) / 2;
 
-    ma1 = rec1.max();
-    ma2 = rec2.max();
-    ma = (ma1 + ma2) / 2;
+    # ma1 = rec1.max();
+    # ma2 = rec2.max();
+    # ma = (ma1 + ma2) / 2;
 
     
-    rec1 = normalize(rec1, mi, ma);
-    rec2 = normalize(rec2, mi, ma);
-    tar1 = normalize(tar1, mi, ma);
-    tar2 = normalize(tar2, mi, ma);
+    # rec1 = normalize(rec1, mi, ma);
+    # rec2 = normalize(rec2, mi, ma);
+    # tar1 = normalize(tar1, mi, ma);
+    # tar2 = normalize(tar2, mi, ma);
 
-    mi = rec1.min();
-    ma = rec1.max();
+    # mi = rec1.min();
+    # ma = rec1.max();
 
-    mi = rec2.min();
-    ma = rec2.max();
+    # mi = rec2.min();
+    # ma = rec2.max();
 
-    mi = tar1.min();
-    ma = tar1.max();
+    # mi = tar1.min();
+    # ma = tar1.max();
 
-    mi = tar2.min();
-    ma = tar2.max();
+    # mi = tar2.min();
+    # ma = tar2.max();
 
 
 
-    ssim_between_targets = fastmri_ssim(torch.from_numpy(tar1).unsqueeze(1), torch.from_numpy(tar2).unsqueeze(1));
-    ssim_between_rec = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(rec2).unsqueeze(1));
-    ssim_between_one = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(tar1).unsqueeze(1));
-    ssim_between_two = fastmri_ssim(torch.from_numpy(rec2).unsqueeze(1), torch.from_numpy(tar2).unsqueeze(1));
+    # ssim_between_targets = fastmri_ssim(torch.from_numpy(tar1).unsqueeze(1), torch.from_numpy(tar2).unsqueeze(1));
+    # ssim_between_rec = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(rec2).unsqueeze(1));
+    # ssim_between_one = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(tar1).unsqueeze(1));
+    # ssim_between_two = fastmri_ssim(torch.from_numpy(rec2).unsqueeze(1), torch.from_numpy(tar2).unsqueeze(1));
 
-    print(f'ssim_between_targets: {ssim_between_targets} \t ssim_between_rec: {ssim_between_rec}\t ssim_between_one: {ssim_between_one}\t ssim_between_two: {ssim_between_two}');
+    # import matplotlib.pyplot as plt
+    # import h5py
+    # import numpy
+    # ls = SSIMLoss();
+    # with h5py.File('test/file_brain_AXT1_202_2020217.h5') as f:
+    #     rec = numpy.array(f['reconstruction']);
+    #     tar = numpy.array(f['target']);
+    
+    # mi_r = rec.min();
+    # ma_r = rec.max();
+
+    # mi_t = tar.min();
+    # ma_t = tar.max();
+
+
+    # ssim = fastmri_ssim(torch.from_numpy(rec).unsqueeze(1), torch.from_numpy(tar).unsqueeze(1));
+    
+
+    # print(f'ssim {ssim}');
         # for i in range(rec.shape[0]):
         #     fig, ax = plt.subplots(1,3);
         #     cur_rec = copy(rec[i]);

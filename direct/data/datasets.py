@@ -475,14 +475,16 @@ class ImageSpaceDataset(Dataset):
                 sample[f'input{i}'] = np.array(f['reconstruction'])[self.data[index][-1]][None,...];
                 sample[f'input{i}'] -= self.data[index][1][0];
                 sample[f'input{i}'] /= self.data[index][1][1];
+                sample[f'input{i}'] += 0.1;
 
                 assert os.path.basename(self.data[index][0][0]) == os.path.basename(self.data[index][0][1])
                 #assert self.data[index][1][2] == self.data[index][2][2]
                # assert self.data[index][1][3] == self.data[index][2][3]
                 if i == 0:
                     sample['target'] = np.array(f['target'])[self.data[index][-1]][None,...];
-                    sample[f'target'] -= self.data[index][1][2];
-                    sample[f'target'] /= self.data[index][1][3];
+                    sample[f'target'] -= self.data[index][1][0];
+                    sample[f'target'] /= self.data[index][1][1];
+                    sample[f'target'] += 0.1;
                     sample['filename'] = self.data[index][0][i]
             sample['slice_no'] = self.data[index][-1];
         
