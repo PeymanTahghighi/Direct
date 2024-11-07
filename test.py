@@ -124,29 +124,13 @@ def main():
     print(args);
     args.subcommand(args)
 
-def normalize(data):
-    
-    temp_data = copy(data);
-    mi = temp_data.min();
-    ma = (temp_data - mi).max()
-
-    for i in range(temp_data.shape[0]):
-        temp_data[i] -= mi;
-        
-        temp_data[i] /= ma;
-
-    m = temp_data.min();
-    mi_d = data.min();
-    data -= data.min()
-    ma_d = data.max()
-    data /= data.max()
-
-    diff = np.sum(temp_data - data);
-
-    assert mi == mi_d and ma == ma_d;
-
+def normalize(data, mi, ma):
+       
+    data -= mi
+    data /= ma
 
     return data;
+
 if __name__ == "__main__":
 
 
@@ -155,13 +139,41 @@ if __name__ == "__main__":
     import numpy
     ls = SSIMLoss();
     with h5py.File('inference/dircn_equispaced_inference_equispaced_train/brain/file_brain_AXT2_208_2080561.h5') as f:
-        rec1 = normalize(numpy.array(f['reconstruction']));
-        tar1 = normalize(numpy.array(f['target']));
+        rec1 = numpy.array(f['reconstruction']);
+        tar1 = numpy.array(f['target']);
     
     with h5py.File('inference/recurrentvarnet_equispaced_inference_equispaced_train/brain/file_brain_AXT2_208_2080561.h5') as f:
-        rec2 = normalize(numpy.array(f['reconstruction']));
-        tar2 = normalize(numpy.array(f['target']));
+        rec2 = numpy.array(f['reconstruction']);
+        tar2 = numpy.array(f['target']);
     
+    mi1 = rec1.min();
+    mi2 = rec2.min();
+    mi = (mi1 + mi2) / 2;
+
+    ma1 = rec1.max();
+    ma2 = rec2.max();
+    ma = (ma1 + ma2) / 2;
+
+    
+    rec1 = normalize(rec1, mi, ma);
+    rec2 = normalize(rec2, mi, ma);
+    tar1 = normalize(tar1, mi, ma);
+    tar2 = normalize(tar2, mi, ma);
+
+    mi = rec1.min();
+    ma = rec1.max();
+
+    mi = rec2.min();
+    ma = rec2.max();
+
+    mi = tar1.min();
+    ma = tar1.max();
+
+    mi = tar2.min();
+    ma = tar2.max();
+
+
+
     ssim_between_targets = fastmri_ssim(torch.from_numpy(tar1).unsqueeze(1), torch.from_numpy(tar2).unsqueeze(1));
     ssim_between_rec = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(rec2).unsqueeze(1));
     ssim_between_one = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(tar1).unsqueeze(1));

@@ -451,7 +451,7 @@ class ImageSpaceDataset(Dataset):
                         ma_t2 = (tar - mi_t2).max()
 
                         num_slices = np.array(file['target']).shape[0];
-                        self.data += [(row, [mi_r1, ma_r1, mi_t1, ma_t1], [mi_r2, ma_r2, mi_t2, ma_t2], i) for i in range(num_slices)]
+                        self.data += [(row, [(mi_r1 + mi_r2)/2, (ma_r1 + ma_r2)/2], i) for i in range(num_slices)]
                         self.volume_indices[base_file_name] = range(current_slice_number, current_slice_number + num_slices)
                         current_slice_number += num_slices;
                 except OSError as exc:
@@ -473,16 +473,16 @@ class ImageSpaceDataset(Dataset):
         for i in range(len(self.data[index][0])):
             with h5py.File(self.data[index][0][i], 'r') as f:
                 sample[f'input{i}'] = np.array(f['reconstruction'])[self.data[index][-1]][None,...];
-                sample[f'input{i}'] -= self.data[index][i+1][0];
-                sample[f'input{i}'] /= self.data[index][i+1][1];
+                sample[f'input{i}'] -= self.data[index][1][0];
+                sample[f'input{i}'] /= self.data[index][1][1];
 
                 assert os.path.basename(self.data[index][0][0]) == os.path.basename(self.data[index][0][1])
-                assert self.data[index][1][2] == self.data[index][2][2]
-                assert self.data[index][1][3] == self.data[index][2][3]
+                #assert self.data[index][1][2] == self.data[index][2][2]
+               # assert self.data[index][1][3] == self.data[index][2][3]
                 if i == 0:
                     sample['target'] = np.array(f['target'])[self.data[index][-1]][None,...];
-                    sample[f'target'] -= self.data[index][i+1][2];
-                    sample[f'target'] /= self.data[index][i+1][3];
+                    sample[f'target'] -= self.data[index][1][0];
+                    sample[f'target'] /= self.data[index][1][1];
                     sample['filename'] = self.data[index][0][i]
             sample['slice_no'] = self.data[index][-1];
         
