@@ -144,10 +144,15 @@ def build_training_datasets_from_environment(
             xls = pd.ExcelFile(data_sheet);
             sheet_name = dataset_args['dataset_config']['sheet_name']
             df = pd.read_excel(xls, sheet_name);
-            names = [df.loc[l, 'Name'] for l in np.where(df['New subsets'] == data_type)[0]]
+            
             data_root = dataset_config['base_path']
             dataset_args.update({"data_root": data_root})
-            filenames_filter = get_filenames_for_datasets(dataset_config['sheet_name'], data_root, names)
+            filenames_filter = get_filenames_for_datasets(dataset_config['sheet_name'], 
+                                                          data_root, 
+                                                          df, 
+                                                          data_type=data_type,
+                                                          seq = dataset_config['seq'] if 'seq' in dataset_config.keys() else 'all',
+                                                          view = dataset_config['view'] if 'view' in dataset_config.keys() else 'all')
             dataset_args.update({"filenames_filter": filenames_filter})
         if pass_dictionaries is not None:
             dataset_args.update({"pass_dictionaries": pass_dictionaries})
@@ -156,6 +161,8 @@ def build_training_datasets_from_environment(
         dataset_args.update({'validation_data_type': validation_data_type});
         if metamodel is False:
             dataset_args.update({'accelerations':dataset_config.transforms.masking.accelerations[0]})
+            dataset_args.update({'seq': dataset_config['seq'] if 'seq' in dataset_config.keys() else 'all'})
+            dataset_args.update({'view': dataset_config['view'] if 'view' in dataset_config.keys() else 'all'})
         if metamodel:
             dataset_args.update({'validation_transforms': val_transforms});
         dataset = build_dataset_from_input(**dataset_args)

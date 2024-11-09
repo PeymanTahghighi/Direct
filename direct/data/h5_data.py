@@ -46,7 +46,9 @@ class H5SliceData(Dataset):
         data_cache_tranform: Optional[Callable] = None,
         data_type = 'train',
         validation_data_type = 'normal',
-        accelerations: int = 4
+        accelerations: int = 4,
+        seq = 'all',
+        view = 'all'
     ) -> None:
         """Initialize the dataset.
 
@@ -98,6 +100,8 @@ class H5SliceData(Dataset):
         self.filenames_filter = filenames_filter
         self.accelerations = accelerations;
         self.metadata = metadata
+        self.seq = seq;
+        self.view = view;
 
         self.dataset_description = dataset_description
         self.text_description = text_description
@@ -358,6 +362,28 @@ class H5SliceData(Dataset):
 
             self.data, self.volume_indices = dataset_cache[dataset_description];
             
+            self.prune_based_on_view_seq(filepaths= filepaths);
+            
+
+    def prune_based_on_view_seq(self, filepaths):
+        if self.seq != 'all' or self.view != 'all':
+            self.logger.info(f'prunning {self.dataset_description}...');
+            current_slice_count = 0;
+            new_data = [];
+            new_volume_indices: Dict[pathlib.Path, range] = {};
+            #it means that filesname does not contain whole filenames in the path so we have to prune it here
+            for filepath in filepaths:
+                rng = self.volume_indices[filepath];
+                slices = rng.stop - rng.start;
+                d = self.data[rng.start: rng.stop];
+                new_data.extend(d);
+                new_volume_indices[filepath] = range(current_slice_count, current_slice_count + slices)
+                current_slice_count+=slices;
+            self.logger.info(f'pruned {self.dataset_description}, old dataset size: {len(self.data)} new dataset size: {len(new_data)}');
+            self.data = new_data;
+            self.volume_indices = new_volume_indices;
+                    
+
     @staticmethod
     def verify_extra_h5_integrity(image_fn, _, extra_h5s):
         # TODO: This function is not doing much right now, and can be removed or should be refactored to something else

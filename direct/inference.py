@@ -110,13 +110,20 @@ def setup_inference_save_to_h5(
             xls = pd.ExcelFile(data_sheet);
             sheet_name = dataset_args['dataset_config']['sheet_name']
             df = pd.read_excel(xls, sheet_name);
-            names = [df.loc[l, 'Name'] for l in np.where(df['New subsets'] == cfg.set_type)[0]]
             data_root = cfg['base_path']
             dataset_args.update({"data_root": data_root})
-            filenames_filter = get_filenames_for_datasets(cfg['sheet_name'], data_root, names)
+            filenames_filter = get_filenames_for_datasets(cfg['sheet_name'], 
+                                                          data_root, 
+                                                          df, 
+                                                          data_type=cfg.set_type,
+                                                          seq = cfg['seq'] if 'seq' in cfg.keys() else 'all',
+                                                          view = cfg['view'] if 'view' in cfg.keys() else 'all')
             dataset_args.update({"filenames_filter": filenames_filter})   
         dataset_args.update({'data_type': cfg.set_type});
         dataset_args.update({'validation_data_type': 'inference'});
+
+        dataset_args.update({'seq': cfg['seq'] if 'seq' in cfg.keys() else 'all'})
+        dataset_args.update({'view': cfg['view'] if 'view' in cfg.keys() else 'all'})
 
         dataset_args.update({"validation_transforms": transform})
         dataset = build_dataset_from_input(**dataset_args)

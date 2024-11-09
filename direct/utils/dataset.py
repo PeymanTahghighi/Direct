@@ -9,6 +9,7 @@ from direct.utils.io import check_is_valid_url, read_list
 import os
 import numpy as np
 import xml.etree.ElementTree as etree  # nosec
+import pandas as pd
 
 from typing import Sequence
 
@@ -119,7 +120,11 @@ def get_filenames_for_datasets_from_config(cfg, files_root: PathOrString, data_r
     return get_filenames_for_datasets(lists, files_root, data_root)
 
 
-def get_filenames_for_datasets(dataset_name: str, base_path, file_names: List[PathOrString]):
+def get_filenames_for_datasets(dataset_name: str, 
+                               base_path, data_frame: pd, 
+                               data_type = 'train',
+                               seq: str = 'all', 
+                               view: str = 'all'):
     """Given lists of filenames of data points, concatenate these into a large list of full filenames.
 
     Parameters
@@ -132,22 +137,35 @@ def get_filenames_for_datasets(dataset_name: str, base_path, file_names: List[Pa
     -------
     list of filenames or None
     """
-    # Build the path, know that files_root can also be a URL
-    #is_url = check_is_valid_url(files_root)
-
     ret = [];
 
+    
     if isinstance(base_path, str):
         if dataset_name == 'AHEAD':
-            ret.extend(os.path.join(base_path, 'ax', d[:d.rfind('.')] + '_ax' + '.h5') for d in file_names);
-            ret.extend(os.path.join(base_path, 'cor', d[:d.rfind('.')] + '_cor' + '.h5') for d in file_names);
-            ret.extend(os.path.join(base_path, 'sag',  d[:d.rfind('.')] + '_sag' + '.h5') for d in file_names);
+            file_names = [data_frame.loc[l, 'Name'] for l in np.where(data_frame['New subsets'] == data_type)[0]]
+            if view == 'Ax' or view == 'all':
+                ret.extend(os.path.join(base_path, 'ax', d[:d.rfind('.')] + '_ax' + '.h5') for d in file_names);
+            
+            if view == 'Cor' or view == 'all':
+                ret.extend(os.path.join(base_path, 'cor', d[:d.rfind('.')] + '_cor' + '.h5') for d in file_names);
+            
+            if view == 'Sag' or view == 'all':
+                ret.extend(os.path.join(base_path, 'sag',  d[:d.rfind('.')] + '_sag' + '.h5') for d in file_names);
         
         elif dataset_name == 'SKM-TEA':
+            file_names = [data_frame.loc[l, 'Name'] for l in np.where(data_frame['New subsets'] == data_type)[0]]
             ret.extend(os.path.join(base_path, "E1_" + d) for d in file_names);
             ret.extend(os.path.join(base_path, "E2_" + d) for d in file_names);
 
         else:
+            file_names = set([data_frame.loc[l, 'Name'] for l in np.where(data_frame['New subsets'] == data_type)[0]])
+            if seq != 'all':
+                file_names_seq = set([data_frame.loc[l, 'Name'] for l in np.where(data_frame['seq'] == seq)[0]])
+                file_names = file_names.intersection(file_names_seq);
+            if view != 'all':
+                file_names_view = set([data_frame.loc[l, 'Name'] for l in np.where(data_frame['view'] == view)[0]])
+                file_names = file_names.intersection(file_names_view);
+            
             ret = [os.path.join(base_path, f) for f in file_names];
     else:
         for i in range(len(base_path)):

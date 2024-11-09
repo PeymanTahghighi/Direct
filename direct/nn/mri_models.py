@@ -805,6 +805,7 @@ class MRIModelEngine(Engine):
         regularizer_fns: Optional[Dict[str, Callable]] = None,
         add_target: bool = True,
         crop: Optional[str] = None,
+        inference = False
     ):
         """Validation process. Assumes that each batch only contains slices of the same volume *AND* that these are
         sequentially ordered.
@@ -884,7 +885,7 @@ class MRIModelEngine(Engine):
             # Output can be complex-valued, and has to be cropped. This holds for both output and target.
             output_abs = _process_output(
                 output,
-                scaling_factor,
+                scaling_factor if inference is False else None,
                 resolution=resolution,
                 complex_axis=self._complex_dim,
             )
@@ -893,7 +894,7 @@ class MRIModelEngine(Engine):
             if add_target:
                 target_abs = _process_output(
                     data["target"],
-                    scaling_factor,
+                    scaling_factor if inference is False else None,
                     resolution=resolution,
                     complex_axis=self._complex_dim,
                 )

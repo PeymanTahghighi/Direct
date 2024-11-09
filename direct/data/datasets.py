@@ -260,6 +260,8 @@ class FastMRIDataset(H5SliceData):
         pass_h5s: Optional[dict] = None,
         data_type = 'train',
         validation_data_type = 'normal',
+        seq = 'all',
+        view = 'all',
         accelerations = 4,
         **kwargs,
     ) -> None:
@@ -285,7 +287,9 @@ class FastMRIDataset(H5SliceData):
             data_type=data_type,
             data_cache_tranform = data_cache_tranform,
             validation_data_type = validation_data_type,
-            accelerations = accelerations
+            accelerations = accelerations,
+            seq = seq,
+            view = view
         )
         if self.sensitivity_maps is not None:
             raise NotImplementedError(

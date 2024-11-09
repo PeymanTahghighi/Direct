@@ -35,9 +35,9 @@ def register_parser(parser: argparse._SubParsersAction):
         help="Path to the experiment directory.",
     )
     train_parser.add_argument("--data_sheet_train", type=pathlib.Path, 
-                              default = 'data_split.xlsx', help="Path to the data sheet which contains all data and their blonging set.", required=False)
+                              default = 'data_split_detailed.xlsx', help="Path to the data sheet which contains all data and their blonging set.", required=False)
     train_parser.add_argument("--data_sheet_validation", type=pathlib.Path, 
-                              default = 'data_split.xlsx', help="Path to the data sheet which contains all data and their blonging set.", required=False)
+                              default = 'data_split_detailed.xlsx', help="Path to the data sheet which contains all data and their blonging set.", required=False)
     
     train_parser.add_argument(
         "--cfg",
