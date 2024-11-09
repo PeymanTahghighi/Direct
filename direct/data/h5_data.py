@@ -373,12 +373,13 @@ class H5SliceData(Dataset):
             new_volume_indices: Dict[pathlib.Path, range] = {};
             #it means that filesname does not contain whole filenames in the path so we have to prune it here
             for filepath in filepaths:
-                rng = self.volume_indices[filepath];
-                slices = rng.stop - rng.start;
-                d = self.data[rng.start: rng.stop];
-                new_data.extend(d);
-                new_volume_indices[filepath] = range(current_slice_count, current_slice_count + slices)
-                current_slice_count+=slices;
+                if filepath in self.volume_indices.keys():
+                    rng = self.volume_indices[filepath];
+                    slices = rng.stop - rng.start;
+                    d = self.data[rng.start: rng.stop];
+                    new_data.extend(d);
+                    new_volume_indices[filepath] = range(current_slice_count, current_slice_count + slices)
+                    current_slice_count+=slices;
             self.logger.info(f'pruned {self.dataset_description}, old dataset size: {len(self.data)} new dataset size: {len(new_data)}');
             self.data = new_data;
             self.volume_indices = new_volume_indices;
