@@ -362,7 +362,7 @@ class H5SliceData(Dataset):
 
             self.data, self.volume_indices = dataset_cache[dataset_description];
             
-            self.prune_based_on_view_seq(filepaths= filepaths);
+        self.prune_based_on_view_seq(filepaths= filepaths);
             
 
     def prune_based_on_view_seq(self, filepaths):
