@@ -119,8 +119,8 @@ def main():
     register_upload_subcommand(root_subparsers)
 
     #args = root_parser.parse_args(['train','--cfg', 'configs/base_varnet.yaml', '--validation-data-type', 'equispaced'])
-    #args = root_parser.parse_args(['train','--cfg', 'configs/metamodel.yaml', '--metamodel'])
-    args = root_parser.parse_args(['predict','--cfg', 'configs/base_varnet_predict.yaml', '--checkpoint', 'experiments/base_varnet/model_500000.pt', '--output_directory', 'test'])
+    args = root_parser.parse_args(['train','--cfg', 'configs/metamodel.yaml', '--metamodel'])
+    #args = root_parser.parse_args(['predict','--cfg', 'configs/base_varnet_predict.yaml', '--checkpoint', 'experiments/base_varnet/model_500000.pt', '--output_directory', 'test'])
     print(args);
     args.subcommand(args)
 

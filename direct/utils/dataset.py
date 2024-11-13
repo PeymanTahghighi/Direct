@@ -168,8 +168,10 @@ def get_filenames_for_datasets(dataset_name: str,
             
             ret = [os.path.join(base_path, f) for f in file_names];
     else:
+        file_names = [data_frame.loc[l, 'Name'] for l in np.where(data_frame['New subsets'] == data_type)[0]]
         for i in range(len(base_path)):
             temp_list = [];
+
             if dataset_name == 'AHEAD':
                 temp_list.extend(os.path.join(base_path[i], d[:d.rfind('.')] + '_ax' + '.h5') for d in file_names);
                 temp_list.extend(os.path.join(base_path[i], d[:d.rfind('.')] + '_cor' + '.h5') for d in file_names);
@@ -180,6 +182,7 @@ def get_filenames_for_datasets(dataset_name: str,
                 temp_list.extend(os.path.join(base_path[i], "E2_" + d) for d in file_names);
 
             else:
+                
                 temp_list = [os.path.join(base_path[i], f) for f in file_names];
             ret.append(temp_list);
     return ret
