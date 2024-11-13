@@ -189,7 +189,9 @@ class Engine(ABC, DataDimensionality):
         prefetch_factor: int = 1,
         batch_size: int = 1,
         crop: Optional[str] = None,
-        metamodel: bool = False
+        metamodel: bool = False,
+        output_directory: str = "",
+        output_key=["reconstruction", "target"],
     ) -> List[np.ndarray]:
         
         
@@ -220,11 +222,15 @@ class Engine(ABC, DataDimensionality):
         data_loader = self.build_loader(dataset, batch_sampler=batch_sampler, num_workers=num_workers,
             prefetch_factor = prefetch_factor)
         if metamodel is False:
-            output = list(self.reconstruct_volumes(data_loader, add_target=True, crop=crop, inference = True))
+           list(self.reconstruct_volumes(data_loader, 
+                                             add_target=True, 
+                                             crop=crop, 
+                                             inference = True, 
+                                             output_directory = output_directory, 
+                                             output_key = output_key));
         else:
             output = list(self.reconstruct_volumes_metamodel(data_loader, add_target=True, crop=crop))
-
-        return output
+            return output
 
     @staticmethod
     def build_loader(

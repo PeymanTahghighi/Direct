@@ -479,7 +479,9 @@ class ImageSpaceDataset(Dataset):
                 sample[f'input{i}'] = np.array(f['reconstruction'])[self.data[index][-1]][None,...];
                 sample[f'input{i}'] -= self.data[index][1][0];
                 sample[f'input{i}'] /= self.data[index][1][1];
-                sample[f'input{i}'] += 0.1;
+                #a constant we are adding to avoid traget going below zero,
+                #this is particularly harmful for ssim loss
+                sample[f'input{i}'] += 0.25;
 
                 assert os.path.basename(self.data[index][0][0]) == os.path.basename(self.data[index][0][1])
                 #assert self.data[index][1][2] == self.data[index][2][2]
@@ -488,7 +490,7 @@ class ImageSpaceDataset(Dataset):
                     sample['target'] = np.array(f['target'])[self.data[index][-1]][None,...];
                     sample[f'target'] -= self.data[index][1][0];
                     sample[f'target'] /= self.data[index][1][1];
-                    sample[f'target'] += 0.1;
+                    sample[f'target'] += 0.25;
                     sample['filename'] = self.data[index][0][i]
             sample['slice_no'] = self.data[index][-1];
         

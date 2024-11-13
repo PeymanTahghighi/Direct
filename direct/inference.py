@@ -152,16 +152,18 @@ def setup_inference_save_to_h5(
             num_workers=num_workers,
             batch_size=batch_size,
             crop=crop,
-            metamodel=metamodel
+            metamodel=metamodel,
+            output_directory = output_directory,
+            output_key=["reconstruction", "target"],
         )
 
         # Perhaps aggregation to the main process would be most optimal here before writing.
         # The current way this write the volumes for each process.
-    write_output_to_h5(
-            output,
-            output_directory,
-            output_key=["reconstruction", "target"],
-        )
+    # write_output_to_h5(
+    #         output,
+    #         output_directory,
+    #         output_key=["reconstruction", "target"],
+    #     )
 
 
 def build_inference_transforms(env, mask_func: Callable, dataset_cfg: DictConfig) -> Callable:
@@ -191,7 +193,9 @@ def inference_on_environment(
     num_workers: int = 0,
     batch_size: int = 1,
     crop: Optional[str] = None,
-    metamodel: bool = False
+    metamodel: bool = False,
+    output_directory: str = '',
+    output_key=["reconstruction", "target"],
 ) -> Union[Dict, DefaultDict]:
     """Performs inference on environment.
 
@@ -232,6 +236,8 @@ def inference_on_environment(
         crop=crop,
         num_workers = env.cfg.inference.num_workers,
         prefetch_factor = env.cfg.inference.prefetch_factor,
-        metamodel = metamodel
+        metamodel = metamodel,
+        output_directory = output_directory,
+        output_key=["reconstruction", "target"],
     )
     return output

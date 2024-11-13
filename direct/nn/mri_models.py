@@ -11,7 +11,7 @@ from collections import defaultdict
 from os import PathLike
 import os
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-
+from direct.utils.writers import write_output_to_h5
 import numpy as np
 import torch
 from torch import nn
@@ -805,7 +805,9 @@ class MRIModelEngine(Engine):
         regularizer_fns: Optional[Dict[str, Callable]] = None,
         add_target: bool = True,
         crop: Optional[str] = None,
-        inference = False
+        inference = False,
+        output_directory = None,
+        output_key = None
     ):
         """Validation process. Assumes that each batch only contains slices of the same volume *AND* that these are
         sequentially ordered.
@@ -860,6 +862,12 @@ class MRIModelEngine(Engine):
             torch.cuda.empty_cache()
 
             filename = _get_filename_from_batch(data)
+            
+            if inference is True:
+                if os.path.exists(os.path.join(output_directory, filename.name)):
+                    self.logger.info(f'file {os.path.join(output_directory, filename.name)} exists, skipping...');
+                    break;
+            
             if last_filename is None:
                 last_filename = filename  # First iteration last_filename is not set.
             if last_filename != filename:
@@ -941,18 +949,28 @@ class MRIModelEngine(Engine):
                     filename, curr_metrics_string
                 )
 
-                
-                # Maybe not needed.
-                del data
-                yield (
-                    (curr_volume, curr_target, reduce_list_of_dicts(loss_dict_list), filename)
-                    if add_target
-                    else (
-                        curr_volume,
-                        reduce_list_of_dicts(loss_dict_list),
-                        filename,
+                if inference is False:
+                    yield (
+                        (curr_volume, curr_target, reduce_list_of_dicts(loss_dict_list), filename)
+                        if add_target
+                        else (
+                            curr_volume,
+                            reduce_list_of_dicts(loss_dict_list),
+                            filename,
+                        )
                     )
-                )
+                else:
+                    write_output_to_h5(
+                    (curr_volume, curr_target, reduce_list_of_dicts(loss_dict_list), filename)
+                        if add_target
+                        else (
+                            curr_volume,
+                            reduce_list_of_dicts(loss_dict_list),
+                            filename,
+                        ),
+                    output_directory=output_directory,
+                    output_key=output_key
+                    )
     
     @torch.no_grad()
     def reconstruct_volumes_metamodel(  # type: ignore

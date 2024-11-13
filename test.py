@@ -118,9 +118,9 @@ def main():
     # Data related comments.
     register_upload_subcommand(root_subparsers)
 
-    args = root_parser.parse_args(['train','--cfg', 'configs/base_varnet.yaml', '--validation-data-type', 'equispaced'])
+    #args = root_parser.parse_args(['train','--cfg', 'configs/base_varnet.yaml', '--validation-data-type', 'equispaced'])
     #args = root_parser.parse_args(['train','--cfg', 'configs/metamodel.yaml', '--metamodel'])
-    #args = root_parser.parse_args(['predict','--cfg', 'configs/base_varnet_predict.yaml', '--checkpoint', 'experiments/base_varnet/model_500000.pt', '--output_directory', 'test'])
+    args = root_parser.parse_args(['predict','--cfg', 'configs/base_varnet_predict.yaml', '--checkpoint', 'experiments/base_varnet/model_500000.pt', '--output_directory', 'test'])
     print(args);
     args.subcommand(args)
 
@@ -179,22 +179,22 @@ if __name__ == "__main__":
     # ssim_between_one = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(tar1).unsqueeze(1));
     # ssim_between_two = fastmri_ssim(torch.from_numpy(rec2).unsqueeze(1), torch.from_numpy(tar2).unsqueeze(1));
 
-    # import matplotlib.pyplot as plt
-    # import h5py
-    # import numpy
-    # ls = SSIMLoss();
-    # with h5py.File('test/file_brain_AXT1_202_2020217.h5') as f:
-    #     rec = numpy.array(f['reconstruction']);
-    #     tar = numpy.array(f['target']);
+    import matplotlib.pyplot as plt
+    import h5py
+    import numpy
+    ls = SSIMLoss();
+    with h5py.File('inference/file_brain_AXFLAIR_200_6002425.h5') as f:
+        rec = numpy.array(f['reconstruction']);
+        tar = numpy.array(f['target']);
     
-    # mi_r = rec.min();
-    # ma_r = rec.max();
+    mi_r = rec.min();
+    ma_r = rec.max();
 
-    # mi_t = tar.min();
-    # ma_t = tar.max();
+    mi_t = tar.min();
+    ma_t = tar.max();
 
 
-    # ssim = fastmri_ssim(torch.from_numpy(rec).unsqueeze(1), torch.from_numpy(tar).unsqueeze(1));
+    ssim = fastmri_ssim(torch.from_numpy(rec).unsqueeze(1), torch.from_numpy(tar).unsqueeze(1));
     
 
     # print(f'ssim {ssim}');
