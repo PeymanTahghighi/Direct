@@ -222,7 +222,7 @@ class Engine(ABC, DataDimensionality):
         data_loader = self.build_loader(dataset, batch_sampler=batch_sampler, num_workers=num_workers,
             prefetch_factor = prefetch_factor)
         if metamodel is False:
-           list(self.reconstruct_volumes(data_loader, 
+           output = list(self.reconstruct_volumes(data_loader, 
                                              add_target=True, 
                                              crop=crop, 
                                              inference = True, 
@@ -230,7 +230,7 @@ class Engine(ABC, DataDimensionality):
                                              output_key = output_key));
         else:
             output = list(self.reconstruct_volumes_metamodel(data_loader, add_target=True, crop=crop))
-            return output
+        return output
 
     @staticmethod
     def build_loader(
