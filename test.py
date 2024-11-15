@@ -134,9 +134,12 @@ def normalize(data, mi, ma):
 if __name__ == "__main__":
 
 
+
     import matplotlib.pyplot as plt
     import h5py
     import numpy
+    import torch
+    s = torch.load('model_125000.pt');
     ls = SSIMLoss();
     with h5py.File('inference/file_brain_AXFLAIR_200_6002425-n.h5') as f:
         rec1 = numpy.array(f['reconstruction']);
