@@ -119,8 +119,8 @@ def main():
     register_upload_subcommand(root_subparsers)
 
     #args = root_parser.parse_args(['train','--cfg', 'configs/base_varnet.yaml', '--validation-data-type', 'equispaced'])
-    #args = root_parser.parse_args(['train','--cfg', 'configs/metamodel.yaml', '--metamodel'])
-    args = root_parser.parse_args(['predict','--cfg', 'configs/base_varnet_predict.yaml', '--checkpoint', 'experiments/base_varnet/model_500000.pt', '--output_directory', 'test'])
+    args = root_parser.parse_args(['train','--cfg', 'configs/metamodel.yaml', '--metamodel'])
+    #args = root_parser.parse_args(['predict','--cfg', 'configs/base_varnet_predict.yaml', '--checkpoint', 'experiments/base_varnet/model_500000.pt', '--output_directory', 'test'])
     print(args);
     args.subcommand(args)
 
@@ -138,7 +138,7 @@ if __name__ == "__main__":
     import h5py
     import numpy
     ls = SSIMLoss();
-    with h5py.File('inference/file_brain_AXFLAIR_200_6002425.h5') as f:
+    with h5py.File('inference/file_brain_AXFLAIR_200_6002425-n.h5') as f:
         rec1 = numpy.array(f['reconstruction']);
         tar1 = numpy.array(f['target']);
     
@@ -178,7 +178,7 @@ if __name__ == "__main__":
     # tar2 += 0.5;
 
 
-    r = tar1.max() - tar1.min()
+    #r = tar1.max() - tar1.min()
     ssim_between_targets = fastmri_ssim(torch.from_numpy(tar1).unsqueeze(1), torch.from_numpy(tar2).unsqueeze(1));
     ssim_between_rec = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(rec2).unsqueeze(1));
     ssim_between_one = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(tar1).unsqueeze(1));
@@ -193,7 +193,7 @@ if __name__ == "__main__":
     import h5py
     import numpy
     ls = SSIMLoss();
-    with h5py.File('inference/file_brain_AXFLAIR_200_6002425.h5') as f:
+    with h5py.File('inference/file_brain_AXFLAIR_200_6002499.h5') as f:
         rec = numpy.array(f['reconstruction']);
         tar = numpy.array(f['target']);
     

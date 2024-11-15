@@ -879,8 +879,9 @@ class NormalizeImageSpace(DirectTransform):
         for key in sample_keys:
             if 'input' in key or 'target' in key:
                 recon = sample[key];
-                recon -= recon.min()
-                recon /= recon.max()
+                recon -= sample['scaling_factor'][0]
+                recon /= sample['scaling_factor'][1]
+                recon += sample['scaling_factor'][2]
                 sample[key] = recon;
         return sample;
 
@@ -2355,7 +2356,7 @@ def build_supervised_mri_transforms(
 
 def build_imagepsace_transforms(
    to_tensor = True,
-   normalize = False,
+   normalize = True,
    padd = True,
    padd_size = 32,
    mask_brain = False

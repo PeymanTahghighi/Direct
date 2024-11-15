@@ -168,21 +168,32 @@ def get_filenames_for_datasets(dataset_name: str,
             
             ret = [os.path.join(base_path, f) for f in file_names];
     else:
-        file_names = [data_frame.loc[l, 'Name'] for l in np.where(data_frame['New subsets'] == data_type)[0]]
+        file_names = set([data_frame.loc[l, 'Name'] for l in np.where(data_frame['New subsets'] == data_type)[0]])
         for i in range(len(base_path)):
             temp_list = [];
 
             if dataset_name == 'AHEAD':
-                temp_list.extend(os.path.join(base_path[i], d[:d.rfind('.')] + '_ax' + '.h5') for d in file_names);
-                temp_list.extend(os.path.join(base_path[i], d[:d.rfind('.')] + '_cor' + '.h5') for d in file_names);
-                temp_list.extend(os.path.join(base_path[i],  d[:d.rfind('.')] + '_sag' + '.h5') for d in file_names);
+                if view == 'Ax' or view == 'all':
+                    temp_list.extend(os.path.join(base_path[i], d[:d.rfind('.')] + '_ax' + '.h5') for d in file_names);
+            
+                if view == 'Cor' or view == 'all':
+                    temp_list.extend(os.path.join(base_path[i], d[:d.rfind('.')] + '_cor' + '.h5') for d in file_names);
+                
+                if view == 'Sag' or view == 'all':
+                    temp_list.extend(os.path.join(base_path[i],  d[:d.rfind('.')] + '_sag' + '.h5') for d in file_names);
             
             elif dataset_name == 'SKM-TEA':
                 temp_list.extend(os.path.join(base_path[i], "E1_" + d) for d in file_names);
                 temp_list.extend(os.path.join(base_path[i], "E2_" + d) for d in file_names);
 
             else:
-                
-                temp_list = [os.path.join(base_path[i], f) for f in file_names];
+                if seq != 'all':
+                    file_names_seq = set([data_frame.loc[l, 'Name'] for l in np.where(data_frame['seq'] == seq)[0]])
+                    file_names = file_names.intersection(file_names_seq);
+                if view != 'all':
+                    file_names_view = set([data_frame.loc[l, 'Name'] for l in np.where(data_frame['view'] == view)[0]])
+                    file_names = file_names.intersection(file_names_view);
+                    
+                    temp_list = [os.path.join(base_path[i], f) for f in file_names];
             ret.append(temp_list);
     return ret
