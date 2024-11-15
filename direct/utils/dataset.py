@@ -194,6 +194,6 @@ def get_filenames_for_datasets(dataset_name: str,
                     file_names_view = set([data_frame.loc[l, 'Name'] for l in np.where(data_frame['view'] == view)[0]])
                     file_names = file_names.intersection(file_names_view);
                     
-                    temp_list = [os.path.join(base_path[i], f) for f in file_names];
+                temp_list = [os.path.join(base_path[i], f) for f in file_names];
             ret.append(temp_list);
     return ret
