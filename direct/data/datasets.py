@@ -401,6 +401,7 @@ class ImageSpaceDataset(Dataset):
         self.train_transforms = transform;
         self.valid_transforms = kwargs.get('validation_transforms')
         self.data_type = data_type;
+        self.skip_cache = kwargs.get('skip_cache')
         self._preprocess(filenames_filter);
     
     def _preprocess(self, filepaths):
@@ -408,14 +409,17 @@ class ImageSpaceDataset(Dataset):
             Here, we always assume that the given files_names is going to be a list of files of list of files
             with a size of at least 2 since we are using this class for ensemble learning of multiple inputs.
         """
-        if os.path.exists(f"{self.data_type}_cache_{self.text_description}_metamodel.ch") is not False:
+        if os.path.exists(f"{self.data_type}_cache_{self.text_description}_metamodel.ch") is not False and self.skip_cache is False:
             with open(f"{self.data_type}_cache_{self.text_description}_metamodel.ch", 'rb') as f:
                 dataset_cache = pickle.load(f);
         else:
             dataset_cache = {};
         
         if self.text_description not in dataset_cache:
-            self.logger.info(f'{self.text_description} does not exists in cache, loading from scratch...')
+            if self.skip_cache is False:
+                self.logger.info(f'{self.text_description} does not exists in cache, loading from scratch...')
+            else:
+                self.logger.info(f'{self.text_description} skipping cache due to skip_cache True...')
             if self.data_type == 'val':
                 #shuffle and take first 30% of validation data
                 for i in range(len(filepaths)):
@@ -462,8 +466,9 @@ class ImageSpaceDataset(Dataset):
                     self.logger.warning(f'could not open {base_file_name} \t {exc}')
                 
             dataset_cache[self.text_description] = [self.data, self.volume_indices]
-            with open(f"{self.data_type}_cache_{self.text_description}_metamodel.ch", 'wb') as f:
-                pickle.dump(dataset_cache, f);
+            if self.skip_cache is False:
+                with open(f"{self.data_type}_cache_{self.text_description}_metamodel.ch", 'wb') as f:
+                    pickle.dump(dataset_cache, f);
         else:
             self.logger.info(f'{self.text_description} found in cache, loading from cache...')
             self.data, self.volume_indices = dataset_cache[self.text_description];

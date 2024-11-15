@@ -116,7 +116,8 @@ def build_training_datasets_from_environment(
     pass_dictionaries: Optional[Dict[str, Dict]] = None,
     data_type: str = 'train',
     validation_data_type: str = 'normal',
-    metamodel = False
+    metamodel = False,
+    skip_cache = False
 ):
     datasets = []
     for idx, dataset_config in enumerate(datasets_config):
@@ -165,6 +166,7 @@ def build_training_datasets_from_environment(
             dataset_args.update({'view': dataset_config['view'] if 'view' in dataset_config.keys() else 'all'})
         if metamodel:
             dataset_args.update({'validation_transforms': val_transforms});
+        dataset_args.update({'skip_cache': skip_cache});
         dataset = build_dataset_from_input(**dataset_args)
 
         logger.debug("Transforms %s / %s :\n%s", idx + 1, len(datasets_config), train_transforms)
@@ -199,7 +201,8 @@ def setup_train(
     machine_rank: int,
     mixed_precision: bool,
     debug: bool,
-    metamodel: bool = False
+    metamodel: bool = False,
+    skip_cache: bool = False
 ):
     env = setup_training_environment(
         run_name,
@@ -242,6 +245,7 @@ def setup_train(
     if initial_kspace is not None:
         training_dataset_args.update({"initial_kspaces": initial_kspace[0]})
     training_dataset_args.update({'metamodel': metamodel});
+    training_dataset_args.update({'skip_cache': skip_cache});
     # Build training datasets
     training_datasets = build_training_datasets_from_environment(**training_dataset_args)
     training_data_sizes = [len(_) for _ in training_datasets]
@@ -265,6 +269,7 @@ def setup_train(
             validation_dataset_args.update({"initial_kspaces": initial_kspace[1]})
         validation_dataset_args.update({'data_type': 'val', 'validation_data_type': validation_data_type});
         validation_dataset_args.update({'metamodel': metamodel});
+        validation_dataset_args.update({'skip_cache': skip_cache});
         # Build validation datasets
         validation_data = build_training_datasets_from_environment(**validation_dataset_args)
     else:
@@ -392,5 +397,6 @@ def train_from_argparse(args: argparse.Namespace):
         args.machine_rank,
         args.mixed_precision,
         args.debug,
-        args.metamodel
+        args.metamodel,
+        args.skip_cache
     )
