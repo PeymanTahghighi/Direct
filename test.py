@@ -120,7 +120,7 @@ def main():
 
     #args = root_parser.parse_args(['train','--cfg', 'configs/base_varnet.yaml', '--validation-data-type', 'equispaced'])
     args = root_parser.parse_args(['train','--cfg', 'configs/metamodel.yaml', '--metamodel', '--skip-cache'])
-    #args = root_parser.parse_args(['predict','--cfg', 'configs/base_varnet_predict.yaml', '--checkpoint', 'experiments/base_varnet/model_500000.pt', '--output_directory', 'test'])
+    #args = root_parser.parse_args(['predict','--cfg', 'configs/base_recurrentvarnet_predict.yaml', '--checkpoint', 'model_recurrentvarnet.pt', '--output_directory', 'test'])
     print(args);
     args.subcommand(args)
 
@@ -182,32 +182,40 @@ if __name__ == "__main__":
 
 
     #r = tar1.max() - tar1.min()
-    ssim_between_targets = fastmri_ssim(torch.from_numpy(tar1).unsqueeze(1), torch.from_numpy(tar2).unsqueeze(1));
-    ssim_between_rec = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(rec2).unsqueeze(1));
-    ssim_between_one = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(tar1).unsqueeze(1));
-    ssim_between_two = fastmri_ssim(torch.from_numpy(rec2).unsqueeze(1), torch.from_numpy(tar2).unsqueeze(1));
+    # ssim_between_targets = fastmri_ssim(torch.from_numpy(tar1).unsqueeze(1), torch.from_numpy(tar2).unsqueeze(1));
+    # ssim_between_rec = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(rec2).unsqueeze(1));
+    # ssim_between_one = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(tar1).unsqueeze(1));
+    # ssim_between_two = fastmri_ssim(torch.from_numpy(rec2).unsqueeze(1), torch.from_numpy(tar2).unsqueeze(1));
 
-    print(f'ssim_between_targets: {ssim_between_targets}');
-    print(f'ssim_between_rec: {ssim_between_rec}');
-    print(f'ssim_between_one: {ssim_between_one}');
-    print(f'ssim_between_two: {ssim_between_two}');
+    # print(f'ssim_between_targets: {ssim_between_targets}');
+    # print(f'ssim_between_rec: {ssim_between_rec}');
+    # print(f'ssim_between_one: {ssim_between_one}');
+    # print(f'ssim_between_two: {ssim_between_two}');
 
-    import matplotlib.pyplot as plt
-    import h5py
-    import numpy
-    ls = SSIMLoss();
-    with h5py.File('inference/file_brain_AXFLAIR_200_6002499.h5') as f:
-        rec = numpy.array(f['reconstruction']);
-        tar = numpy.array(f['target']);
+    # import matplotlib.pyplot as plt
+    # import h5py
+    # import numpy
+    # ls = SSIMLoss();
+    # with h5py.File('inference/file_brain_AXFLAIR_200_6002499.h5') as f:
+    #     rec = numpy.array(f['reconstruction']);
+    #     tar = numpy.array(f['target']);
     
-    mi_r = rec.min();
-    ma_r = rec.max();
+    # mi_r = rec.min();
+    # ma_r = rec.max();
 
-    mi_t = tar.min();
-    ma_t = tar.max();
+    # mi_t = tar.min();
+    # ma_t = tar.max();
 
 
-    ssim = fastmri_ssim(torch.from_numpy(rec).unsqueeze(1), torch.from_numpy(tar).unsqueeze(1));
+    # ssim = fastmri_ssim(torch.from_numpy(rec).unsqueeze(1), torch.from_numpy(tar).unsqueeze(1));
+
+    # with h5py.File('test/file_brain_AXT2_206_2060064.h5') as f:
+    #     rec = numpy.array(f['reconstruction']);
+    #     tar = numpy.array(f['target']);
+    #     for i in range(rec.shape[0]):
+    #         plt.figure();
+    #         plt.imshow(rec[i], cmap='gray');
+    #         plt.show();
     
 
     # print(f'ssim {ssim}');
