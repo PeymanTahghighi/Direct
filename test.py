@@ -118,10 +118,10 @@ def main():
     # Data related comments.
     register_upload_subcommand(root_subparsers)
 
-    #args = root_parser.parse_args(['train','--cfg', 'configs/base_varnet.yaml', '--validation-data-type', 'equispaced'])
-    args = root_parser.parse_args(['train','--cfg', 'configs/metamodel.yaml', '--metamodel', '--skip-cache'])
-    #args = root_parser.parse_args(['predict','--cfg', 'configs/base_recurrentvarnet_predict.yaml', '--checkpoint', 'model_recurrentvarnet.pt', '--output_directory', 'test'])
-    print(args);
+    #args = root_parser.parse_args(['train','--cfg', 'configs/base_recurrentvarnet_predict.yaml', '--validation-data-type', 'equispaced'])
+    #args = root_parser.parse_args(['train','--cfg', 'configs/metamodel.yaml', '--metamodel', '--skip-cache'])
+    args = root_parser.parse_args(['predict','--cfg', 'configs/base_recurrentvarnet_predict.yaml', '--checkpoint', 'model_recurrentvarnet.pt', '--output_directory', 'test'])
+    #print(args);
     args.subcommand(args)
 
 def normalize(data, mi, ma):
@@ -139,7 +139,9 @@ if __name__ == "__main__":
     import h5py
     import numpy
     import torch
-    s = torch.load('model_125000.pt');
+    recurr = torch.load('model_recurrentvarnet.pt');
+    dircn = torch.load('model_80000.pt');
+    torch.save(dircn['model'], 'dircn_model.pt');
     ls = SSIMLoss();
     with h5py.File('inference/file_brain_AXFLAIR_200_6002425-n.h5') as f:
         rec1 = numpy.array(f['reconstruction']);

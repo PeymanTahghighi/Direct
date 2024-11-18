@@ -88,6 +88,12 @@ def register_parser(parser: argparse._SubParsersAction):
         help="indicate if we are training meta model or micor models.",
         action = 'store_true'
     )
+
+    predict_parser.add_argument(
+        "--skip-cache",
+        help="indicate we are skipping caching for datasets.",
+        action = 'store_true'
+    )
     
 
     predict_parser.set_defaults(subcommand=predict_from_argparse)

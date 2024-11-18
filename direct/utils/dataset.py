@@ -159,10 +159,10 @@ def get_filenames_for_datasets(dataset_name: str,
             file_names = ([data_frame.loc[l, 'Name'] for l in np.where(data_frame['New subsets'] == data_type)[0]])
             if seq != 'all':
                 file_names_seq = ([data_frame.loc[l, 'Name'] for l in np.where(data_frame['seq'] == seq)[0]])
-                file_names = file_names.intersection(file_names_seq);
+                file_names = np.intersect1d(file_names, file_names_seq);
             if view != 'all':
                 file_names_view = ([data_frame.loc[l, 'Name'] for l in np.where(data_frame['view'] == view)[0]])
-                file_names = file_names.intersection(file_names_view);
+                file_names = np.intersect1d(file_names, file_names_view);
             
             ret = [os.path.join(base_path, f) for f in file_names];
     else:

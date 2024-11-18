@@ -605,7 +605,7 @@ class Engine(ABC, DataDimensionality):
             ) == total_iter:
                 self.logger.info(f"Checkpointing at iteration {iter_idx}.")
                 self.checkpointer.save(iter_idx, get_event_storage())
-
+                
     def write_to_logs_at_interval(self, iter_idx, total_iter):
         if iter_idx >= 5:
             # Log every 20 iterations, or at a validation step or at the end of training.
