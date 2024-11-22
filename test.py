@@ -119,8 +119,8 @@ def main():
     register_upload_subcommand(root_subparsers)
 
     #args = root_parser.parse_args(['train','--cfg', 'configs/base_recurrentvarnet_predict.yaml', '--validation-data-type', 'equispaced'])
-    #args = root_parser.parse_args(['train','--cfg', 'configs/metamodel.yaml', '--metamodel', '--skip-cache'])
-    args = root_parser.parse_args(['predict','--cfg', 'configs/base_recurrentvarnet_predict.yaml', '--checkpoint', 'model_recurrentvarnet.pt', '--output_directory', 'test'])
+    args = root_parser.parse_args(['train','--cfg', 'configs/metamodel.yaml', '--metamodel', '--skip-cache'])
+    #args = root_parser.parse_args(['predict','--cfg', 'configs/metamodel.yaml', '--checkpoint', 'model_metamodel.pt', '--output_directory', 'test', '--metamodel'])
     #print(args);
     args.subcommand(args)
 
@@ -143,27 +143,37 @@ if __name__ == "__main__":
     dircn = torch.load('model_80000.pt');
     torch.save(dircn['model'], 'dircn_model.pt');
     ls = SSIMLoss();
-    with h5py.File('inference/file_brain_AXFLAIR_200_6002425-n.h5') as f:
+    with h5py.File('dataset/dircn/file_brain_AXFLAIR_200_6002425.h5') as f:
         rec1 = numpy.array(f['reconstruction']);
         tar1 = numpy.array(f['target']);
     
-    with h5py.File('inference/file_brain_AXFLAIR_200_6002425_bt.h5') as f:
+    with h5py.File('dataset/recurrent/file_brain_AXFLAIR_200_6002425.h5') as f:
         rec2 = numpy.array(f['reconstruction']);
         tar2 = numpy.array(f['target']);
     
-    # mi1 = rec1.min();
-    # mi2 = rec2.min();
-    # mi = (mi1 + mi2) / 2;
+    mi1 = rec1.min();
+    mi2 = rec2.min();
+    mi = (mi1 + mi2) / 2;
 
-    # ma1 = rec1.max();
-    # ma2 = rec2.max();
-    # ma = (ma1 + ma2) / 2;
+    ma1 = rec1.max();
+    ma2 = rec2.max();
+    ma = (ma1 + ma2) / 2;
 
     
-    # rec1 = normalize(rec1, mi, ma);
-    # rec2 = normalize(rec2, mi, ma);
-    # tar1 = normalize(tar1, mi, ma);
-    # tar2 = normalize(tar2, mi, ma);
+    rec1 = normalize(rec1, mi, ma);
+    rec2 = normalize(rec2, mi, ma);
+    tar1 = normalize(tar1, mi, ma);
+    tar2 = normalize(tar2, mi, ma);
+    
+    # rec1 *= ma;
+    # rec2 *= ma;
+    # tar1 *= ma;
+    # tar2 *= ma;
+
+    # rec1 += mi;
+    # rec2 += mi;
+    # tar1 += mi;
+    # tar2 += mi;
 
     # mi = rec1.min();
     # ma = rec1.max();
@@ -184,15 +194,15 @@ if __name__ == "__main__":
 
 
     #r = tar1.max() - tar1.min()
-    # ssim_between_targets = fastmri_ssim(torch.from_numpy(tar1).unsqueeze(1), torch.from_numpy(tar2).unsqueeze(1));
-    # ssim_between_rec = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(rec2).unsqueeze(1));
-    # ssim_between_one = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(tar1).unsqueeze(1));
-    # ssim_between_two = fastmri_ssim(torch.from_numpy(rec2).unsqueeze(1), torch.from_numpy(tar2).unsqueeze(1));
+    ssim_between_targets = fastmri_ssim(torch.from_numpy(tar1).unsqueeze(1), torch.from_numpy(tar2).unsqueeze(1));
+    ssim_between_rec = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(rec2).unsqueeze(1));
+    ssim_between_one = fastmri_ssim(torch.from_numpy(rec1).unsqueeze(1), torch.from_numpy(tar1).unsqueeze(1));
+    ssim_between_two = fastmri_ssim(torch.from_numpy(rec2).unsqueeze(1), torch.from_numpy(tar2).unsqueeze(1));
 
-    # print(f'ssim_between_targets: {ssim_between_targets}');
-    # print(f'ssim_between_rec: {ssim_between_rec}');
-    # print(f'ssim_between_one: {ssim_between_one}');
-    # print(f'ssim_between_two: {ssim_between_two}');
+    print(f'ssim_between_targets: {ssim_between_targets}');
+    print(f'ssim_between_rec: {ssim_between_rec}');
+    print(f'ssim_between_one: {ssim_between_one}');
+    print(f'ssim_between_two: {ssim_between_two}');
 
     # import matplotlib.pyplot as plt
     # import h5py

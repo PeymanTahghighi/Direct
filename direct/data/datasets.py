@@ -488,7 +488,7 @@ class ImageSpaceDataset(Dataset):
                 if i == 0:
                     sample['target'] = np.array(f['target'])[self.data[index][-1]][None,...];
                     sample['filename'] = self.data[index][0][i]
-                    sample['scaling_factor'] = [self.data[index][1][0], self.data[index][1][1], 0.25];
+                    sample['scaling_factor'] = [self.data[index][1][0], self.data[index][1][1], 0.0];
             sample['slice_no'] = self.data[index][-1];
         
         if self.data_type == 'train':

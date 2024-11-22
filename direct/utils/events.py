@@ -173,7 +173,7 @@ class CommonMetricPrinter(EventWriter):
         self.logger = logging.getLogger(type(self).__name__)
         self._max_iter = max_iter
         self._last_write = None
-        self.__window_size = 1000;
+        self.__window_size = 100;
 
     def write(self):
         storage = get_event_storage()
@@ -213,7 +213,7 @@ class CommonMetricPrinter(EventWriter):
 
         metrics_and_losses_string = "  ".join(
             [
-                f"{k}: {v.median(self.__window_size) if 'val' not in k else v.max()}"
+                f"{k}: {v.avg(self.__window_size) if 'val' not in k else v.max()}"
                 for k, v in storage.histories().items()
                 if ("loss" in k or "metric" in k or "reg" in k)
             ]

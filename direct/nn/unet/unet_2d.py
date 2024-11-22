@@ -538,7 +538,7 @@ class UNet2dPytorch(nn.Module):
                             bias=False,
                         ),
                     ),
-                    (name + "norm1", nn.BatchNorm2d(num_features=features)),
+                    (name + "norm1", nn.InstanceNorm2d(num_features=features)),
                     (name + "relu1", nn.ReLU(inplace=True)),
                     (
                         name + "conv2",
@@ -550,7 +550,7 @@ class UNet2dPytorch(nn.Module):
                             bias=False,
                         ),
                     ),
-                    (name + "norm2", nn.BatchNorm2d(num_features=features)),
+                    (name + "norm2", nn.InstanceNorm2d(num_features=features)),
                     (name + "relu2", nn.ReLU(inplace=True)),
                 ]
             )

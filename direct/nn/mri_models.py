@@ -1030,6 +1030,12 @@ class MRIModelEngine(Engine):
             loss_dict = iteration_output.data_dict
             target = data['target'];
 
+            output *= data['scaling_factor'][:,1]
+            output += data['scaling_factor'][:,0]
+
+            target *= data['scaling_factor'][:,1]
+            target += data['scaling_factor'][:,0]
+
             if curr_volume is None:
                 volume_size = len(data_loader.dataset.volume_indices[filename])  # type: ignore
                 curr_volume = torch.zeros(*(volume_size, *output.shape[1:]), dtype=output.dtype)
