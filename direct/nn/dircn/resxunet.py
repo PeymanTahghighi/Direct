@@ -4,8 +4,8 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 
-from bottleneck import Bottleneck
-from basicblock import BasicBlock
+from direct.nn.dircn.bottleneck import Bottleneck
+from direct.nn.dircn.basicblock import BasicBlock
 
 class ResXUNet(nn.Module):
 

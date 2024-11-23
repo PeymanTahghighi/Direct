@@ -151,7 +151,7 @@ def build_training_datasets_from_environment(
             filenames_filter = get_filenames_for_datasets(dataset_config['sheet_name'], 
                                                           data_root, 
                                                           df, 
-                                                          data_type=data_type,
+                                                          data_type='train',
                                                           seq = dataset_config['seq'] if 'seq' in dataset_config.keys() else 'all',
                                                           view = dataset_config['view'] if 'view' in dataset_config.keys() else 'all')
             dataset_args.update({"filenames_filter": filenames_filter})

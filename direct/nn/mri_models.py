@@ -933,7 +933,7 @@ class MRIModelEngine(Engine):
                     metric_name: metric_fn(target_for_eval, volume_for_eval).clone()
                     for metric_name, metric_fn in volume_metrics.items()
                 }
-
+                
                 curr_metrics_string = ", ".join([f"{x}: {float(y)}" for x, y in curr_metrics.items()])
                 self.logger.info(
                     "%i of %i volumes reconstructed: %s (shape = %s) in %.3fs. Metrics for %s: %s",

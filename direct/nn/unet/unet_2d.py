@@ -12,6 +12,7 @@ import segmentation_models_pytorch as smp
 from direct.data import transforms as T
 from direct.nn.types import InitType
 from collections import OrderedDict
+from direct.nn.dircn.resxunet import ResXUNet
 
 
 class ConvBlock(nn.Module):
@@ -644,6 +645,8 @@ class Unet2dImageSpace(nn.Module):
             model_weights = torch.load('pretrained_weights/unet-e012d006.pt');
             model_weights.pop('encoder1.enc1conv1.weight')
             self.model.load_state_dict(model_weights, strict=False);
+        elif model_type == 'resunetx':
+            self.model = ResXUNet(n_channels= num_inputs, n_classes=1)
 
         self.final_activations = final_activations;
     def forward(
