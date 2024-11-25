@@ -48,7 +48,8 @@ class H5SliceData(Dataset):
         validation_data_type = 'normal',
         accelerations: int = 4,
         seq = 'all',
-        view = 'all'
+        view = 'all',
+        skip_cache: bool = False
     ) -> None:
         """Initialize the dataset.
 
@@ -102,6 +103,7 @@ class H5SliceData(Dataset):
         self.metadata = metadata
         self.seq = seq;
         self.view = view;
+        self.skip_cache = skip_cache;
 
         self.dataset_description = dataset_description
         self.text_description = text_description
@@ -197,7 +199,7 @@ class H5SliceData(Dataset):
                     num_slices = kspace_shape[0]
 
                     for slice_no in range(num_slices):
-                        if os.path.exists(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache{self.data_postfix}{self.acc_postfix}.ch')) is True:
+                        if os.path.exists(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache{self.data_postfix}{self.acc_postfix}.ch')) is True and self.skip_cache is False:
                             self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache{self.data_postfix}{self.acc_postfix}.ch'));
                             continue;
                         
@@ -226,8 +228,9 @@ class H5SliceData(Dataset):
                         
                         sample = transforms(sample);
 
-                        with open(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache{self.data_postfix}{self.acc_postfix}.ch'), 'wb') as f:
-                            pickle.dump(sample, f);
+                        if self.skip_cache is False:
+                            with open(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache{self.data_postfix}{self.acc_postfix}.ch'), 'wb') as f:
+                                pickle.dump(sample, f);
                         self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache{self.data_postfix}{self.acc_postfix}.ch'));
 
             except OSError as exc:
@@ -252,7 +255,7 @@ class H5SliceData(Dataset):
                     num_slices = kspace_shape[0]
 
                     for slice_no in range(num_slices):
-                        if os.path.exists(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache_inference.ch')) is True:
+                        if os.path.exists(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache_inference.ch')) is True and self.skip_cache is False:
                             self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache_inference.ch'));
                             continue;
                         
@@ -267,8 +270,9 @@ class H5SliceData(Dataset):
 
                         sample.update(extra_data)
 
-                        with open(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache_inference.ch'), 'wb') as f:
-                            pickle.dump(sample, f);
+                        if self.skip_cache is False:
+                            with open(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache_inference.ch'), 'wb') as f:
+                                pickle.dump(sample, f);
                         self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache_inference.ch'));
 
             except OSError as exc:
@@ -293,7 +297,7 @@ class H5SliceData(Dataset):
                     num_slices = kspace_shape[0]
 
                     for slice_no in range(num_slices):
-                        if os.path.exists(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch')) is True:
+                        if os.path.exists(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch')) is True and self.skip_cache is False:
                             self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'));
                             continue;
                         
@@ -308,11 +312,10 @@ class H5SliceData(Dataset):
 
                         sample.update(extra_data)
 
-                        with open(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'), 'wb') as f:
-                            pickle.dump(sample, f);
+                        if self.skip_cache is False:
+                            with open(os.path.join(base_root,f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'), 'wb') as f:
+                                pickle.dump(sample, f);
                         self.data.append(os.path.join(base_root, f"cache_{data_type}", f'{filename}_{slice_no}_cache.ch'));
-
-                #self.verify_extra_h5_integrity(filepath, kspace_shape, extra_h5s=extra_h5s)  # pylint: disable = E1101
 
             except OSError as exc:
                 self.logger.warning("%s failed with OSError: %s. Skipping...", filepath, exc)
@@ -324,7 +327,7 @@ class H5SliceData(Dataset):
           
     def parse_filenames_data(self, dataset_description, filepaths, transforms, extra_h5s=None, filter_slice=None, data_type = 'train'):
         #check if we have already cached this dataset
-        if os.path.exists(f"{data_type}_cache_{dataset_description}{self.data_postfix if data_type == 'val' else ''}{self.acc_postfix if data_type == 'val' else ''}.ch") is not False:
+        if os.path.exists(f"{data_type}_cache_{dataset_description}{self.data_postfix if data_type == 'val' else ''}{self.acc_postfix if data_type == 'val' else ''}.ch") is not False and self.skip_cache is False:
             with open(f"{data_type}_cache_{dataset_description}{self.data_postfix if data_type == 'val' else ''}{self.acc_postfix if data_type == 'val' else ''}.ch", 'rb') as f:
                 dataset_cache = pickle.load(f);
         else:
@@ -339,7 +342,10 @@ class H5SliceData(Dataset):
             if os.path.exists(os.path.join(base_root, f'cache_{data_type}')) is False:
                 os.makedirs(os.path.join(base_root, f'cache_{data_type}'));
 
-            self.logger.info(f'{dataset_description} does not exists in cache, loading from scratch...')
+            if self.skip_cache is False:
+                self.logger.info(f'{dataset_description} does not exists in cache, loading from scratch...')
+            else:
+                self.logger.info(f'skipping cache for {dataset_description}...')
 
             if data_type == 'val' and self.validation_data_type != 'inference':
                 self.cache_validation(filepaths, transforms, base_root, data_type);
@@ -353,9 +359,10 @@ class H5SliceData(Dataset):
                 self.cache_training(filepaths, base_root, data_type)
                 #done loading files, cache it
                 dataset_cache[dataset_description] = [self.data, self.volume_indices]
-        
-            with open(f"{data_type}_cache_{dataset_description}{self.data_postfix if data_type == 'val' else ''}{self.acc_postfix if data_type == 'val' else ''}.ch", 'wb') as f:
-                pickle.dump(dataset_cache, f);
+
+            if self.skip_cache is False:
+                with open(f"{data_type}_cache_{dataset_description}{self.data_postfix if data_type == 'val' else ''}{self.acc_postfix if data_type == 'val' else ''}.ch", 'wb') as f:
+                    pickle.dump(dataset_cache, f);
         
         else:
             self.logger.info(f'{dataset_description} found in cache, loading from cache...')

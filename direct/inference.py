@@ -40,7 +40,8 @@ def setup_inference_save_to_h5(
     mixed_precision: bool = False,
     debug: bool = False,
     is_validation: bool = False,
-    metamodel: bool = False
+    metamodel: bool = False,
+    skip_cache: bool = False
     
 ) -> None:
     """This function contains most of the logic in DIRECT required to launch a multi-gpu / multi-node inference process.
@@ -126,6 +127,7 @@ def setup_inference_save_to_h5(
         dataset_args.update({'view': cfg['view'] if 'view' in cfg.keys() else 'all'})
 
         dataset_args.update({"validation_transforms": transform})
+        dataset_args.update({"skip_cache": skip_cache})
         dataset = build_dataset_from_input(**dataset_args)
 
         datasets.append(dataset)

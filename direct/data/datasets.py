@@ -289,7 +289,8 @@ class FastMRIDataset(H5SliceData):
             validation_data_type = validation_data_type,
             accelerations = accelerations,
             seq = seq,
-            view = view
+            view = view,
+            skip_cache = kwargs.get('skip_cache')
         )
         if self.sensitivity_maps is not None:
             raise NotImplementedError(
@@ -1474,6 +1475,7 @@ def build_dataset_from_input(
     data_type = 'train',
     data_cache_tranform: Callable = None,
     validation_data_type = 'normal',
+    skip_cache: bool = False,
     **kwargs: dict[str, Any],
 ) -> Dataset:
     """Builds dataset from input keyword arguments and configuration file.
@@ -1531,6 +1533,7 @@ def build_dataset_from_input(
         data_type = data_type,
         data_cache_tranform = data_cache_tranform,
         validation_data_type = validation_data_type,
+        skip_cache = skip_cache,
         **kwargs,
         **config_kwargs,
     )
