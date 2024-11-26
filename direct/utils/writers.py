@@ -41,8 +41,9 @@ def write_output_to_h5(
     if create_dirs_if_needed:
         # Create output directory
         output_directory.mkdir(exist_ok=True, parents=True)
+    total_ssim = [];
     if isinstance(output, list):
-        for idx, (prediction, target, _, filename) in enumerate(output):
+        for idx, (prediction, target, ssim, _, filename) in enumerate(output):
             # The output has shape (slice, 1, height, width)
             if isinstance(filename, pathlib.PosixPath):
                 filename = filename.name
@@ -54,10 +55,11 @@ def write_output_to_h5(
 
             if volume_processing_func:
                 reconstruction = volume_processing_func(reconstruction)
-
+            total_ssim.append(ssim);
             with h5py.File(output_directory / filename, "w") as f:
                 f.create_dataset(output_key[0], data=reconstruction)
                 f.create_dataset(output_key[1], data=target)
+        print(f'avg ssim: {np.mean(total_ssim)}');
     else:
         prediction, target, _, filename = output
         # The output has shape (slice, 1, height, width)

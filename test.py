@@ -120,7 +120,8 @@ def main():
 
     #args = root_parser.parse_args(['train','--cfg', 'configs/base_recurrentvarnet_predict.yaml', '--validation-data-type', 'equispaced'])
     #args = root_parser.parse_args(['train','--cfg', 'configs/metamodel.yaml', '--metamodel', '--skip-cache'])
-    args = root_parser.parse_args(['predict','--cfg', 'configs/base_recurrentvarnet_predict.yaml', '--checkpoint', 'model_recurrentvarnet.pt', '--output_directory', 'test' , '--skip-cache'])
+    #args = root_parser.parse_args(['predict','--cfg', 'configs/base_recurrentvarnet_predict.yaml', '--checkpoint', 'model_recurrentvarnet.pt', '--output_directory', 'test' , '--skip-cache'])
+    args = root_parser.parse_args(['predict','--cfg', 'configs/metamodel.yaml', '--checkpoint', 'model_491000.pt', '--output_directory', 'test' , '--skip-cache', '--metamodel'])
     #print(args);
     args.subcommand(args)
 

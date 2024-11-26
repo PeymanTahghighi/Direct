@@ -946,7 +946,7 @@ class MRIModelEngine(Engine):
                 )
 
                 yield (
-                    (curr_volume, curr_target, reduce_list_of_dicts(loss_dict_list), filename)
+                    (curr_volume, curr_target,  curr_metrics['fastmri_ssim_metric'], reduce_list_of_dicts(loss_dict_list), filename)
                     if add_target
                     else (
                         curr_volume,
@@ -1009,6 +1009,8 @@ class MRIModelEngine(Engine):
         time_start = time.time()
         loss_dict_list = []
 
+        volume_metrics = self.build_metrics(self.cfg.validation.metrics)
+
         # TODO: Use iter_idx to keep track of volume
         for _, data in enumerate(data_loader):
 
@@ -1052,19 +1054,36 @@ class MRIModelEngine(Engine):
             # Check if we had the last batch
             if slice_counter == volume_size:
                 filenames_seen += 1
+
+                if self.ndim == 3:
+                # Put slice and time data together
+                    sc, c, z, x, y = curr_volume.shape
+                    volume_for_eval = curr_volume.clone().transpose(1, 2).reshape(sc * z, c, x, y)
+                    target_for_eval = curr_target.clone().transpose(1, 2).reshape(sc * z, c, x, y)
+                else:
+                    volume_for_eval = curr_volume.clone()
+                    target_for_eval = curr_target.clone()
+
+                curr_metrics = {
+                    metric_name: metric_fn(target_for_eval, volume_for_eval).clone()
+                    for metric_name, metric_fn in volume_metrics.items()
+                }
+                
+                curr_metrics_string = ", ".join([f"{x}: {float(y)}" for x, y in curr_metrics.items()])
                 
                 self.logger.info(
-                    "%i of %i volumes reconstructed: %s (shape = %s) in %.3fs.",
+                    "%i of %i volumes reconstructed: %s (shape = %s) in %.3fs. %f",
                     filenames_seen,
                     num_for_this_process,
                     last_filename,
                     list(curr_volume.shape),
                     time.time() - time_start,
+                    curr_metrics_string
                 )
                 # Maybe not needed.
                 del data
                 yield (
-                    (curr_volume, curr_target, reduce_list_of_dicts(loss_dict_list), filename)
+                    (curr_volume, curr_target, curr_metrics['fastmri_ssim_metric'], reduce_list_of_dicts(loss_dict_list), filename)
                     if add_target
                     else (
                         curr_volume,
