@@ -1135,7 +1135,7 @@ class MRIModelEngine(Engine):
                 data_loader, loss_fns=loss_fns, add_target=True, crop=self.cfg.validation.crop  # type: ignore
             )
         ):
-            volume, target, volume_loss_dict, filename = output
+            volume, target, _, volume_loss_dict, filename = output
             if self.ndim == 3:
                 # Put slice and time data together
                 sc, c, z, x, y = volume.shape
