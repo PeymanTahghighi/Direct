@@ -1072,7 +1072,7 @@ class MRIModelEngine(Engine):
                 curr_metrics_string = ", ".join([f"{x}: {float(y)}" for x, y in curr_metrics.items()])
                 
                 self.logger.info(
-                    "%i of %i volumes reconstructed: %s (shape = %s) in %.3fs. %f",
+                    "%i of %i volumes reconstructed: %s (shape = %s) in %.3fs. %s",
                     filenames_seen,
                     num_for_this_process,
                     last_filename,
