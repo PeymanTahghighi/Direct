@@ -906,11 +906,13 @@ class MRIModelEngine(Engine):
             if curr_volume is None:
                 volume_size = len(data_loader.dataset.volume_indices[filename])  # type: ignore
                 curr_volume = torch.zeros(*(volume_size, *output_abs.shape[1:]), dtype=output_abs.dtype)
+                curr_scaling_factor = torch.zeros((volume_size), dtype=output_abs.dtype)
                 loss_dict_list.append(loss_dict)
                 if add_target:
                     curr_target = curr_volume.clone()
 
             curr_volume[slice_counter : slice_counter + output_abs.shape[0], ...] = output_abs.cpu()
+            curr_scaling_factor[slice_counter : slice_counter + output_abs.shape[0]] = scaling_factor.cpu();
             if add_target:
                 curr_target[slice_counter : slice_counter + output_abs.shape[0], ...] = target_abs.cpu()  # type: ignore
 
@@ -946,7 +948,7 @@ class MRIModelEngine(Engine):
                 )
 
                 yield (
-                    (curr_volume, curr_target,  curr_metrics['fastmri_ssim_metric'], reduce_list_of_dicts(loss_dict_list), filename)
+                    (curr_volume, curr_target, curr_scaling_factor, curr_metrics['fastmri_ssim_metric'], reduce_list_of_dicts(loss_dict_list), filename)
                     if add_target
                     else (
                         curr_volume,
@@ -1135,7 +1137,7 @@ class MRIModelEngine(Engine):
                 data_loader, loss_fns=loss_fns, add_target=True, crop=self.cfg.validation.crop  # type: ignore
             )
         ):
-            volume, target, _, volume_loss_dict, filename = output
+            volume, target, _,_, volume_loss_dict, filename = output
             if self.ndim == 3:
                 # Put slice and time data together
                 sc, c, z, x, y = volume.shape

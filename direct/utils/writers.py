@@ -17,6 +17,7 @@ def write_output_to_h5(
     volume_processing_func: Optional[Callable] = None,
     output_key: str = "reconstruction",
     create_dirs_if_needed: bool = True,
+    metamodel: bool = False
 ) -> None:
     """Write dictionary with keys filenames and values torch tensors to h5 files.
 
@@ -42,7 +43,24 @@ def write_output_to_h5(
         # Create output directory
         output_directory.mkdir(exist_ok=True, parents=True)
     total_ssim = [];
-    if isinstance(output, list):
+    if metamodel is False:
+        for idx, (prediction, target, scaling_factor, ssim,_, filename) in enumerate(output):
+            # The output has shape (slice, 1, height, width)
+            if isinstance(filename, pathlib.PosixPath):
+                filename = filename.name
+
+            logger.info(f"({idx + 1}/{len(output)}): Writing {output_directory / filename}...")
+
+            reconstruction = prediction.numpy()[:, 0, ...].astype(np.float32)
+            target = target.numpy()[:, 0, ...].astype(np.float32)
+
+            if volume_processing_func:
+                reconstruction = volume_processing_func(reconstruction)
+            with h5py.File(output_directory / filename, "w") as f:
+                f.create_dataset(output_key[0], data=reconstruction)
+                f.create_dataset(output_key[1], data=target)
+                f.create_dataset('scaling_factor', data=scaling_factor)
+    else:
         for idx, (prediction, target, ssim, _, filename) in enumerate(output):
             # The output has shape (slice, 1, height, width)
             if isinstance(filename, pathlib.PosixPath):
@@ -55,25 +73,6 @@ def write_output_to_h5(
 
             if volume_processing_func:
                 reconstruction = volume_processing_func(reconstruction)
-            total_ssim.append(ssim);
             with h5py.File(output_directory / filename, "w") as f:
                 f.create_dataset(output_key[0], data=reconstruction)
                 f.create_dataset(output_key[1], data=target)
-        print(f'avg ssim: {np.mean(total_ssim)}');
-    else:
-        prediction, target, _, filename = output
-        # The output has shape (slice, 1, height, width)
-        if isinstance(filename, pathlib.PosixPath):
-            filename = filename.name
-
-        logger.info(f"Writing {output_directory / filename}...")
-
-        reconstruction = prediction.numpy()[:, 0, ...].astype(np.float32)
-        target = target.numpy()[:, 0, ...].astype(np.float32)
-
-        if volume_processing_func:
-            reconstruction = volume_processing_func(reconstruction)
-
-        with h5py.File(output_directory / filename, "w") as f:
-            f.create_dataset(output_key[0], data=reconstruction)
-            f.create_dataset(output_key[1], data=target)

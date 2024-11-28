@@ -13,7 +13,7 @@ work with complex-valued data where the last axis denotes the real and imaginary
 
 from __future__ import annotations
 
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, Tuple
 
 import numpy as np
 import torch
@@ -910,6 +910,55 @@ def reduce_operator(
 
     return complex_multiplication(conjugate(sensitivity_map), coil_data).sum(dim, keepdim=keep_dim)
 
+def zero_pad(data: np.ndarray, shape: Tuple[int, int]) -> torch.Tensor:
+    """
+    Apply zero-padding to an input real image or batch of real images.
+
+    Args:
+        data: >=2D input tensor to be padded. The padding is applied along the
+            last two dimensions.
+        shape: The output shape. Should be at least as large as the
+            corresponding dimensions of `data`.
+
+    Returns:
+        The padded image.
+    """
+    if data.shape[-2] > shape[0] or data.shape[-1] > shape[1]:
+        raise ValueError(
+            'Invalid shapes: in={}, out={}'.format(data.shape[-2:], shape)
+        )
+    
+    h_from = (shape[0] - data.shape[-2])//2
+    w_from = (shape[1] - data.shape[-1])//2
+    h_to = h_from + data.shape[-2]
+    w_to = w_from + data.shape[-1]
+    if isinstance(data, torch.Tensor):
+        new_data = torch.zeros(data.shape[:-2] + tuple(shape), dtype=data.dtype)
+    else:
+        new_data = np.zeros(data.shape[:-2] + tuple(shape), dtype=data.dtype)
+    new_data[..., h_from:h_to, w_from:w_to] = data
+
+    return new_data
+
+def zero_pad_complex(
+        data: torch.Tensor, shape: Tuple[int, int]
+) -> torch.Tensor:
+    """
+    Apply zero-padding to a complex tensor.
+
+    Args:
+        data: >=3D input tensor to be padded. The padding is applied along the
+            second-last and third-last dimensions (complex dimension is last).
+        shape: The output shape. Should be at least as large as the
+            corresponding dimensions of `data`.
+
+    Returns:
+        The padded tensor.
+    """
+    data = torch.moveaxis(data, -1, 1)
+    data = zero_pad(data, shape)
+    data = torch.moveaxis(data, 1, -1).contiguous()
+    return data
 
 def expand_operator(
     data: torch.Tensor,

@@ -165,6 +165,148 @@ def setup_inference_save_to_h5(
             output,
             output_directory,
             output_key=["reconstruction", "target"],
+            metamodel=metamodel
+        )
+
+def setup_inference_performance(
+    get_inference_settings: Callable,
+    run_name: str,
+    data_sheet: str,
+    base_directory: PathOrString,
+    micro_model1_checkpoint: FileOrUrl,
+    micro_model2_checkpoint: FileOrUrl,
+    meta_model_checkpoint: FileOrUrl,
+    device: str,
+    num_workers: int,
+    machine_rank: int,
+    cfg_file: Union[PathOrString, None] = None,
+    process_per_chunk: Optional[int] = None,
+    mixed_precision: bool = False,
+    debug: bool = False,
+    skip_cache: bool = False
+    
+) -> None:
+    """This function contains most of the logic in DIRECT required to launch a multi-gpu / multi-node inference process.
+
+    It saves predictions as `.h5` files.
+
+    Parameters
+    ----------
+    get_inference_settings: Callable
+        Callable object to create inference dataset and environment.
+    run_name: str
+        Experiment run name. Can be an empty string.
+    data_root: Union[PathOrString, None]
+        Path of the directory of the data if applicable for dataset. Can be None.
+    base_directory: PathOrString
+        Path to directory where where inference logs will be stored. If `run_name` is not an empty string,
+        `base_directory / run_name` will be used.
+    output_directory: PathOrString
+        Path to directory where output data will be saved.
+    filenames_filter: Union[List[PathOrString], None]
+        List of filenames to include in the dataset (if applicable). Can be None.
+    checkpoint: FileOrUrl
+        Checkpoint to a model. This can be a path to a local file or an URL.
+    device: str
+        Device name.
+    num_workers: int
+        Number of workers.
+    machine_rank: int
+        Machine rank.
+    cfg_file: Union[PathOrString, None]
+        Path to configuration file. If None, will search in `base_directory`.
+    process_per_chunk: int
+        Processes per chunk number.
+    mixed_precision: bool
+        If True, mixed precision will be allowed. Default: False.
+    debug: bool
+        If True, debug information will be displayed. Default: False.
+    is_validation: bool
+        If True, will use settings (e.g. `batch_size` & `crop`) of `validation` in config.
+        Otherwise it will use `inference` settings. Default: False.
+
+    Returns
+    -------
+    None
+    """
+    env = setup_inference_environment(
+        run_name, base_directory, device, machine_rank, mixed_precision, cfg_file, debug=debug
+    )
+
+    dataset_cfg, transforms = get_inference_settings(env, metamodel = metamodel)
+
+    torch.backends.cudnn.benchmark = True
+    logger.info(f"Predicting dataset and saving in: {output_directory}.")
+
+    datasets = []
+    for idx, (transform, cfg) in enumerate(zip(transforms, dataset_cfg)):
+        if metamodel is False:
+            if cfg.transforms.masking is None:  # type: ignore
+                logger.info(
+                    "Masking function set to None for %s.",
+                    dataset_config.text_description,  # type: ignore
+                )
+
+        dataset_args = {"transforms": transform, "dataset_config": cfg}
+        
+        if data_sheet is not None:
+            xls = pd.ExcelFile(data_sheet);
+            sheet_name = dataset_args['dataset_config']['sheet_name']
+            df = pd.read_excel(xls, sheet_name);
+            data_root = cfg['base_path']
+            dataset_args.update({"data_root": data_root})
+            filenames_filter = get_filenames_for_datasets(cfg['sheet_name'], 
+                                                          data_root, 
+                                                          df, 
+                                                          data_type=cfg.set_type,
+                                                          seq = cfg['seq'] if 'seq' in cfg.keys() else 'all',
+                                                          view = cfg['view'] if 'view' in cfg.keys() else 'all')
+            dataset_args.update({"filenames_filter": filenames_filter})   
+        dataset_args.update({'data_type': cfg.set_type});
+        dataset_args.update({'validation_data_type': 'inference'});
+
+        dataset_args.update({'seq': cfg['seq'] if 'seq' in cfg.keys() else 'all'})
+        dataset_args.update({'view': cfg['view'] if 'view' in cfg.keys() else 'all'})
+
+        dataset_args.update({"validation_transforms": transform})
+        dataset_args.update({"skip_cache": skip_cache})
+        dataset = build_dataset_from_input(**dataset_args)
+
+        datasets.append(dataset)
+        logger.info(
+            "Data size for %s (%s/%s): %s.",
+            cfg.text_description,  # type: ignore
+            idx + 1,
+            len(dataset_cfg),
+            len(dataset),
+        )
+
+
+        if is_validation:
+            batch_size, crop = env.cfg.validation.batch_size, env.cfg.validation.crop  # type: ignore
+        else:
+            batch_size, crop = env.cfg.inference.batch_size, env.cfg.inference.crop  # type: ignore
+
+        
+        output = inference_on_environment(
+            env=env,
+            dataset=dataset,
+            experiment_path=base_directory / run_name,
+            checkpoint=checkpoint,
+            num_workers=num_workers,
+            batch_size=batch_size,
+            crop=crop,
+            metamodel=metamodel,
+            output_directory = output_directory,
+            output_key=["reconstruction", "target"],
+        )
+
+        # Perhaps aggregation to the main process would be most optimal here before writing.
+        # The current way this write the volumes for each process.
+    write_output_to_h5(
+            output,
+            output_directory,
+            output_key=["reconstruction", "target"],
         )
 
 

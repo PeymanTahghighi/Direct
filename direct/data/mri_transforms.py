@@ -881,7 +881,24 @@ class NormalizeImageSpace(DirectTransform):
                 recon = sample[key];
                 recon -= sample['scaling_factor'][0]
                 recon /= sample['scaling_factor'][1]
-                recon += sample['scaling_factor'][2]
+                sample[key] = recon;
+        return sample;
+
+
+class DeNormalizeImageSpace(DirectTransform):
+    def __init__(self):
+        super().__init__()
+    
+    def __call__(self, sample: dict[str, Any]):
+        sample_keys = list(sample.keys());
+
+        for key in sample_keys:
+            if 'output' in key:
+                recon = sample[key];
+                # dummy_recon = copy(recon);
+                # recon = np.where(dummy_recon < 0.0, 1.0, recon);
+                recon -= recon.min();
+                #recon = np.where(dummy_recon < 0.0, 0.0, recon);
                 sample[key] = recon;
         return sample;
 
@@ -941,9 +958,27 @@ class PaddImageSpace(DirectTransform):
                 new_img = np.zeros((d, new_h, new_w), dtype=img.dtype);
                 new_img[:,:h,:w] = img;
                 sample[key] = new_img;
+                sample['unpadd_size'] = [h,w];
 
         return sample;
         
+class UnpaddImageSpace(DirectTransform):
+    def __init__(self):
+        super().__init__()
+    
+    def __call__(self, sample: dict[str, Any]):
+        sample_keys = list(sample.keys());
+
+        for key in sample_keys:
+            if 'output' in key:
+                h,w = sample['unpadd_size'];
+                recon = sample[key];
+                if recon.ndim == 3:
+                    recon = recon[:, :h, :w];
+                else:
+                    recon = recon[:h, :w];
+                sample[key] = recon;
+        return sample;
 
 class ComputeImageModule(DirectModule):
     """Compute Image transform."""
@@ -1760,11 +1795,10 @@ class ToTensor(DirectTransform):
              or (coil, slice, height, width) (3D)
         """
         
-        
-
         # Shape:    2D: (coil, height, width, complex=2), 3D: (coil, slice, height, width, complex=2)
         if 'kspace' in sample:
-            sample["kspace"] = T.to_tensor(sample["kspace"]).float()
+            if not isinstance(sample['kspace'], torch.Tensor): 
+                sample["kspace"] = T.to_tensor(sample["kspace"]).float()
             ndim = sample["kspace"].ndim - 1
 
             if ndim not in [2, 3]:
@@ -1785,7 +1819,8 @@ class ToTensor(DirectTransform):
             # Shape:    2D: (coil, height, width), 3D: (coil, slice, height, width)
             sample["target"] = torch.from_numpy(sample["target"]).float()
         if "sampling_mask" in sample:
-            sample["sampling_mask"] = torch.from_numpy(sample["sampling_mask"]).bool()
+            if not isinstance(sample['sampling_mask'], torch.Tensor): 
+                sample["sampling_mask"] = torch.from_numpy(sample["sampling_mask"]).bool()
         if "acs_mask" in sample:
             sample["acs_mask"] = torch.from_numpy(sample["acs_mask"]).bool()
         if "scaling_factor" in sample:
@@ -1804,6 +1839,41 @@ class ToTensor(DirectTransform):
             sample['input2'] = torch.from_numpy(sample['input2']).float();
         if 'input3' in sample:
             sample['input3'] = torch.from_numpy(sample['input3']).float();
+        return sample
+
+class ToNumpy(DirectTransform):
+    """Transforms all torch.tensors values in sample to numpy."""
+
+    def __call__(self, sample: dict[str, Any]) -> dict[str, Any]:
+        """Calls :class:`ToNumpy`.
+
+        Parameters
+        ----------
+        sample: dict[str, Any]
+             Contains key 'kspace' with value a np.array of shape (coil, height, width) (2D)
+             or (coil, slice, height, width) (3D)
+
+        Returns
+        -------
+        sample: dict[str, Any]
+             Contains key 'kspace' with value a torch.Tensor of shape (coil, height, width) (2D)
+             or (coil, slice, height, width) (3D)
+        """
+
+        if 'input0' in sample:
+            sample['input0'] = np.array(sample['input0'].cpu())
+        if 'input1' in sample:
+            sample['input1'] = np.array(sample['input1'].cpu())
+        if 'input2' in sample:
+            sample['input2'] = np.array(sample['input2'].cpu())
+        if 'input3' in sample:
+            sample['input3'] = np.array(sample['input3'].cpu())
+        if 'output' in sample:
+            if sample["output"].ndim == 4:
+                sample["output"] = sample["output"].squeeze(dim = 0);
+            sample['output'] = np.array(sample['output'].cpu());
+        if 'scaling_factor' in sample:
+            sample['scaling_factor'] = np.array(sample['scaling_factor'].cpu());
         return sample
 
 
@@ -2380,6 +2450,30 @@ def build_imagepsace_transforms(
 
 
     return Compose(image_space_transforms)
+
+def build_imagepsace_postprocess_transforms(
+   to_numpy = True,
+   denormalize = True,
+   unpadd = True
+) -> DirectTransform:
+    r"""Builds supervised MRI transforms.
+
+    Returns
+    -------
+    DirectTransform
+        An MRI transformation object.
+    """
+    image_space_postprocess_transforms: list[Callable] = [];
+
+    if to_numpy:
+        image_space_postprocess_transforms += [ToNumpy()]
+    if unpadd:
+        image_space_postprocess_transforms += [UnpaddImageSpace()]
+    if denormalize:
+        image_space_postprocess_transforms += [DeNormalizeImageSpace()];
+    
+
+    return Compose(image_space_postprocess_transforms)
 
 class TransformsType(DirectEnum):
     SUPERVISED = "supervised"
