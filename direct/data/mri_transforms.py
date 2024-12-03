@@ -2451,7 +2451,7 @@ def build_imagepsace_transforms(
 
     return Compose(image_space_transforms)
 
-def build_imagepsace_postprocess_transforms(
+def build_imagespace_postprocess_transforms(
    to_numpy = True,
    denormalize = True,
    unpadd = True

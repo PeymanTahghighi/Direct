@@ -17,6 +17,7 @@ from skimage.filters import prewitt, threshold_otsu, sobel, roberts, scharr,thre
 from skimage.morphology import binary_closing
 import numpy as np
 from copy import copy
+import piq
 
 class SSIMLoss(nn.Module):
     """SSIM loss module as implemented in [1]_.
@@ -108,6 +109,7 @@ def main():
 
     # Prevent circular imports
     from direct.cli.predict import register_parser as register_predict_subcommand
+    from direct.cli.infer import register_parser as register_infer_subcommand
     from direct.cli.train import register_parser as register_train_subcommand
     from direct.cli.upload import register_parser as register_upload_subcommand
 
@@ -117,11 +119,14 @@ def main():
     register_predict_subcommand(root_subparsers)
     # Data related comments.
     register_upload_subcommand(root_subparsers)
+    # Data related comments.
+    register_infer_subcommand(root_subparsers)
 
     #args = root_parser.parse_args(['train','--cfg', 'configs/base_recurrentvarnet_predict.yaml', '--validation-data-type', 'equispaced'])
     #args = root_parser.parse_args(['train','--cfg', 'configs/metamodel.yaml', '--metamodel', '--skip-cache'])
-    #args = root_parser.parse_args(['predict','--cfg', 'configs/base_recurrentvarnet_predict.yaml', '--checkpoint', 'model_recurrentvarnet.pt', '--output_directory', 'test' , '--skip-cache'])
-    args = root_parser.parse_args(['predict','--cfg', 'configs/metamodel.yaml', '--checkpoint', 'model_491000.pt', '--output_directory', 'test' , '--skip-cache', '--metamodel'])
+    args = root_parser.parse_args(['predict','--cfg', 'configs/base_recurrentvarnet_predict.yaml', '--checkpoint', 'micro_recurrent_varnet_weights.pth', '--output_directory', 'test' , '--skip-cache'])
+    #args = root_parser.parse_args(['predict','--cfg', 'configs/metamodel.yaml', '--checkpoint', 'model_491000.pt', '--output_directory', 'test' , '--skip-cache', '--metamodel'])
+    #args = root_parser.parse_args(['infer','--cfg', 'configs/metamodel.yaml', '--micro-model1-checkpoint', 'model_491000.pt','--micro-model2-checkpoint', 'model_491000.pt', '--meta-model-checkpoint', 'model_491000.pt' , '--skip-cache'])
     #print(args);
     args.subcommand(args)
 
@@ -135,7 +140,13 @@ def normalize(data, mi, ma):
 if __name__ == "__main__":
 
 
-
+    import pickle
+    import pathlib
+    pathlib.Path
+    temp = pathlib.PosixPath
+    pathlib.PosixPath = pathlib.WindowsPath
+    d = pickle.load(open('val_cache_FastMRI-brain.ch', 'rb'));
+    print(d);
     # import matplotlib.pyplot as plt
     # import h5py
     # import numpy
@@ -223,13 +234,13 @@ if __name__ == "__main__":
     ssim = fastmri_ssim(torch.from_numpy(tar).unsqueeze(1), torch.from_numpy(rec).unsqueeze(1));
     print(ssim);
 
-    # with h5py.File('test/file_brain_AXT2_206_2060064.h5') as f:
-    #     rec = numpy.array(f['reconstruction']);
-    #     tar = numpy.array(f['target']);
-    #     for i in range(rec.shape[0]):
-    #         plt.figure();
-    #         plt.imshow(rec[i], cmap='gray');
-    #         plt.show();
+    with h5py.File('test/lcp_0.h5') as f:
+        rec = numpy.array(f['reconstruction']);
+        tar = numpy.array(f['target']);
+        for i in range(rec.shape[0]):
+            plt.figure();
+            plt.imshow(rec[i], cmap='gray');
+            plt.show();
     
 
     # print(f'ssim {ssim}');

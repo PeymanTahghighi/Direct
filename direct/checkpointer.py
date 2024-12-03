@@ -41,7 +41,7 @@ class Checkpointer:
 
     def __init__(
         self,
-        save_directory: pathlib.Path,
+        save_directory: pathlib.Path = 'Default',
         save_to_disk: bool = True,
         model_regex: str = "^.*model$",
         **checkpointables: Mapping[str, Union[str, bool, HasStateDict]],

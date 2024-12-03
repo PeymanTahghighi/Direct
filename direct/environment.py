@@ -161,10 +161,10 @@ def load_models_into_environment_config(cfg_from_file: DictConfig) -> Tuple[dict
     (models, models_config): (dict, DictConfig)
         Models dictionary and models configuration dictionary.
     """
-    cfg = {"model": cfg_from_file.model}
+    cfg = {"model": cfg_from_file['model']}
 
     if "additional_models" in cfg_from_file:
-        cfg = {**cfg, **cfg_from_file.additional_models}
+        cfg = {**cfg, **cfg_from_file['additional_models']}
     # Parse config of additional models
     # TODO: Merge this with the normal model config loading.
     models_config = {}
@@ -175,7 +175,7 @@ def load_models_into_environment_config(cfg_from_file: DictConfig) -> Tuple[dict
             sys.exit(-1)
 
         curr_model_cfg = cfg[curr_model_name]
-        model_name = curr_model_cfg.model_name
+        model_name = curr_model_cfg['model_name']
         models[curr_model_name] = load_model_from_name(model_name)
 
         models_config[curr_model_name] = OmegaConf.merge(load_model_config_from_name(model_name), curr_model_cfg)
@@ -340,7 +340,8 @@ def setup_common_environment(
     """
 
     logger = logging.getLogger()
-
+    if isinstance (base_directory, pathlib.Path) is False:
+        base_directory = pathlib.Path(base_directory);
     experiment_dir = base_directory / run_name
     if communication.get_local_rank() == 0:
         # Want to prevent multiple workers from trying to write a directory
@@ -350,10 +351,13 @@ def setup_common_environment(
 
     # Load configs from YAML file to check which model needs to be loaded.
     # Can also be loaded from a URL
-    if check_is_valid_url(cfg_pathname):
-        cfg_from_external_source = OmegaConf.create(read_text_from_url(cfg_pathname))
+    if isinstance(cfg_pathname, pathlib.Path):
+        if check_is_valid_url(cfg_pathname):
+            cfg_from_external_source = OmegaConf.create(read_text_from_url(cfg_pathname))
+        else:
+            cfg_from_external_source = OmegaConf.load(cfg_pathname)
     else:
-        cfg_from_external_source = OmegaConf.load(cfg_pathname)
+        cfg_from_external_source = cfg_pathname;
 
     # Load the default configs to ensure type safety
     cfg = OmegaConf.structured(DefaultConfig)
@@ -373,7 +377,7 @@ def setup_common_environment(
     for key in cfg_from_external_source:
         # TODO: This does not really do a full validation.
         # BODY: This will be handeled once Hydra is implemented.
-        if key in ["models", "additional_models"]:  # Still handled separately
+        if key in ["models", "additional_models", "checkpoint"]:  # Still handled separately
             continue
 
         if key in ["training", "validation", "inference"]:
@@ -505,10 +509,13 @@ def setup_testing_environment(
     if cfg_pathname is None:  # If None, try to load from base experiment directory
         cfg_pathname = base_directory / run_name / "config.yaml"
 
-    # If not an URL, check if it exists
-    if not check_is_valid_url(cfg_pathname):
-        if not pathlib.Path(cfg_pathname).exists():
-            raise FileNotFoundError(f"Config file {cfg_pathname} does not exist.")
+    # check type of given config, it its string it means its a path
+    # otherwise it is a already loaded config file
+    if isinstance(cfg_pathname, pathlib.Path):
+        # If not an URL, check if it exists
+        if not check_is_valid_url(cfg_pathname):
+            if not pathlib.Path(cfg_pathname).exists():
+                raise FileNotFoundError(f"Config file {cfg_pathname} does not exist.")
 
     env = setup_common_environment(
         run_name,
@@ -528,11 +535,11 @@ def setup_testing_environment(
 
 
 def setup_inference_environment(
-    run_name: str,
-    base_directory: pathlib.Path,
-    device: str,
-    machine_rank: int,
-    mixed_precision: bool,
+    run_name: str = 'Default',
+    base_directory: pathlib.Path = 'Default',
+    device: str = 'cuda',
+    machine_rank: int = 0,
+    mixed_precision: bool = True,
     cfg_file: Optional[Union[pathlib.Path, str]] = None,
     debug: bool = False,
 ):

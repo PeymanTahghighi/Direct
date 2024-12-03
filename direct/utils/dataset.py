@@ -10,7 +10,7 @@ import os
 import numpy as np
 import xml.etree.ElementTree as etree  # nosec
 import pandas as pd
-
+from glob import glob
 from typing import Sequence
 
 def _et_query(
@@ -154,7 +154,9 @@ def get_filenames_for_datasets(dataset_name: str,
             file_names = [data_frame.loc[l, 'Name'] for l in np.where(data_frame['New subsets'] == data_type)[0]]
             ret.extend(os.path.join(base_path, "E1_" + d) for d in file_names);
             ret.extend(os.path.join(base_path, "E2_" + d) for d in file_names);
-
+        elif dataset_name == 'Phantom':
+            file_names = glob(os.path.join(base_path, '*.h5'));
+            ret.extend(file_names);
         else:
             file_names = ([data_frame.loc[l, 'Name'] for l in np.where(data_frame['New subsets'] == data_type)[0]])
             if seq != 'all':

@@ -110,7 +110,9 @@ def setup_inference_save_to_h5(
         if data_sheet is not None:
             xls = pd.ExcelFile(data_sheet);
             sheet_name = dataset_args['dataset_config']['sheet_name']
-            df = pd.read_excel(xls, sheet_name);
+            df = None
+            if sheet_name != 'Phantom':
+                df = pd.read_excel(xls, sheet_name);
             data_root = cfg['base_path']
             dataset_args.update({"data_root": data_root})
             filenames_filter = get_filenames_for_datasets(cfg['sheet_name'], 
