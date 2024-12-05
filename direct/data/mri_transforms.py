@@ -876,12 +876,23 @@ class NormalizeImageSpace(DirectTransform):
     def __call__(self, sample: dict[str, Any]):
         sample_keys = list(sample.keys());
 
+        mins = [];
+        maxs = [];
+        for key in sample_keys:
+            if 'input' in key:
+                recon = sample[key];
+                mins += [recon.min()];
+                maxs += [recon.max()];
+        avg_min = np.mean(mins);
+        avg_max = np.mean(maxs);
+
         for key in sample_keys:
             if 'input' in key or 'target' in key:
                 recon = sample[key];
-                recon -= sample['scaling_factor'][0]
-                recon /= sample['scaling_factor'][1]
+                recon -= avg_min;
+                recon /= avg_max;
                 sample[key] = recon;
+        sample['scaling_factor'] = [avg_min, avg_max];
         return sample;
 
 
