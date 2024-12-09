@@ -84,6 +84,10 @@ class DIRCNEngine(MRIModelEngine):
             sampling_mask=data["sampling_mask"],
             sensitivity_map=data["sensitivity_map"],
         )
+
+        if 'pad_size' in data:
+            output_kspace = T.zero_pad_complex(output_kspace, data['pad_size']);
+        
         output_image = T.root_sum_of_squares(
             self.backward_operator(output_kspace, dim=self._spatial_dims),
             dim=self._coil_dim,

@@ -297,7 +297,7 @@ class Engine(ABC, DataDimensionality):
         self.logger.info(f"Local rank: {communication.get_local_rank()}.")
         self.models_training_mode()
 
-        loss_fns = self.build_loss()
+        loss_fns, loss_fns_parameters = self.build_loss()
         metric_fns = self.build_metrics(self.cfg.training.metrics)  # type: ignore
         regularizer_fns = self.build_regularizers(self.cfg.training.regularizers)  # type: ignore
         storage = get_event_storage()
@@ -358,7 +358,7 @@ class Engine(ABC, DataDimensionality):
                 self.logger.info(f"Starting with validation at iteration: {iter_idx}.")
                 validation_func(iter_idx)
             try:
-                iteration_output = self._do_iteration(data, loss_fns, regularizer_fns=regularizer_fns)
+                iteration_output = self._do_iteration(data, loss_fns, loss_fns_parameters, regularizer_fns=regularizer_fns)
                 loss_dict = iteration_output.data_dict
             except (ProcessKilledException, TrainingException) as e:
                 # If the process is killed, the DoIterationOutput

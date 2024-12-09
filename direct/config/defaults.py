@@ -33,6 +33,8 @@ class CheckpointerConfig(BaseConfig):
 @dataclass
 class LossConfig(BaseConfig):
     crop: Optional[str] = None
+    output_norm: Optional[str] = None
+    output_norm_param: Optional[float] = None
     losses: List[Any] = field(default_factory=lambda: [FunctionConfig()])
 
 

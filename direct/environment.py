@@ -108,6 +108,8 @@ def setup_logging(
     cfg_filename: Union[pathlib.Path, str],
     cfg: DefaultConfig,
     debug: bool,
+    logger_enabled: bool = True,
+    log_level: str = "INFO"
 ) -> None:
     """Logs environment information.
 
@@ -130,22 +132,23 @@ def setup_logging(
     log_file = output_directory / f"log_{machine_rank}_{communication.get_local_rank()}.txt"
 
     setup(
-        use_stdout=communication.is_main_process() or debug,
-        filename=log_file,
-        log_level=("INFO" if not debug else "DEBUG"),
+        use_stdout=(communication.is_main_process() or debug) and logger_enabled,
+        filename=log_file if logger_enabled==True else None,
+        log_level=(log_level if not debug else "DEBUG"),
     )
-    logger.info("Machine rank: %s", machine_rank)
-    logger.info("Local rank: %s", communication.get_local_rank())
-    logger.info("Logging: %s", log_file)
-    logger.info("Saving to: %s", output_directory)
-    logger.info("Run name: %s", run_name)
-    logger.info("Config file: %s", cfg_filename)
-    logger.info("CUDA %s - cuDNN %s", torch.version.cuda, torch.backends.cudnn.version())
-    logger.info("Environment information: %s", collect_env.get_pretty_env_info())
-    logger.info("DIRECT version: %s", direct.__version__)
-    git_hash = direct.utils.git_hash()
-    logger.info("Git hash: %s", git_hash if git_hash else "N/A")
-    logger.info("Configuration: %s", OmegaConf.to_yaml(cfg))
+    if logger_enabled is True:
+        logger.info("Machine rank: %s", machine_rank)
+        logger.info("Local rank: %s", communication.get_local_rank())
+        logger.info("Logging: %s", log_file)
+        logger.info("Saving to: %s", output_directory)
+        logger.info("Run name: %s", run_name)
+        logger.info("Config file: %s", cfg_filename)
+        logger.info("CUDA %s - cuDNN %s", torch.version.cuda, torch.backends.cudnn.version())
+        logger.info("Environment information: %s", collect_env.get_pretty_env_info())
+        logger.info("DIRECT version: %s", direct.__version__)
+        git_hash = direct.utils.git_hash()
+        logger.info("Git hash: %s", git_hash if git_hash else "N/A")
+        logger.info("Configuration: %s", OmegaConf.to_yaml(cfg))
 
 
 def load_models_into_environment_config(cfg_from_file: DictConfig) -> Tuple[dict, DictConfig]:
@@ -313,6 +316,8 @@ def setup_common_environment(
     machine_rank: int,
     mixed_precision: bool,
     debug: bool = False,
+    logger_enabled: bool = True,
+    log_level: str = "INFO"
 ):
     """Setup environment.
 
@@ -340,10 +345,14 @@ def setup_common_environment(
     """
 
     logger = logging.getLogger()
+    
+    if logger_enabled is False:
+        logging.disable(log_level);
+    
     if isinstance (base_directory, pathlib.Path) is False:
         base_directory = pathlib.Path(base_directory);
     experiment_dir = base_directory / run_name
-    if communication.get_local_rank() == 0:
+    if communication.get_local_rank() == 0 and debug:
         # Want to prevent multiple workers from trying to write a directory
         # This is required in the logging below
         experiment_dir.mkdir(parents=True, exist_ok=True)
@@ -351,7 +360,7 @@ def setup_common_environment(
 
     # Load configs from YAML file to check which model needs to be loaded.
     # Can also be loaded from a URL
-    if isinstance(cfg_pathname, pathlib.Path):
+    if isinstance(cfg_pathname, str) or isinstance(cfg_pathname, pathlib.Path):
         if check_is_valid_url(cfg_pathname):
             cfg_from_external_source = OmegaConf.create(read_text_from_url(cfg_pathname))
         else:
@@ -396,7 +405,7 @@ def setup_common_environment(
     # Make configuration read only.
     # TODO(jt): Does not work when indexing config lists.
     # OmegaConf.set_readonly(cfg, True)
-    setup_logging(machine_rank, experiment_dir, run_name, cfg_pathname, cfg, debug)
+    setup_logging(machine_rank, experiment_dir, run_name, cfg_pathname, cfg, debug, logger_enabled=logger_enabled, log_level=log_level)
     forward_operator, backward_operator = build_operators(cfg.physics)
 
     model, additional_models = initialize_models_from_config(cfg, models, forward_operator, backward_operator, device)
@@ -481,6 +490,8 @@ def setup_testing_environment(
     mixed_precision: bool,
     cfg_pathname: Optional[Union[pathlib.Path, str]] = None,
     debug: bool = False,
+    logger_enabled: bool = True,
+    log_level: str = "INFO"
 ):
     """Setup testing environment.
 
@@ -511,7 +522,7 @@ def setup_testing_environment(
 
     # check type of given config, it its string it means its a path
     # otherwise it is a already loaded config file
-    if isinstance(cfg_pathname, pathlib.Path):
+    if isinstance(cfg_pathname, str):
         # If not an URL, check if it exists
         if not check_is_valid_url(cfg_pathname):
             if not pathlib.Path(cfg_pathname).exists():
@@ -525,6 +536,8 @@ def setup_testing_environment(
         machine_rank,
         mixed_precision,
         debug=debug,
+        logger_enabled=logger_enabled,
+        log_level=log_level
     )
 
     environment = namedtuple(
@@ -542,6 +555,8 @@ def setup_inference_environment(
     mixed_precision: bool = True,
     cfg_file: Optional[Union[pathlib.Path, str]] = None,
     debug: bool = False,
+    logger_enabled: bool = True,
+    log_level: str = "INFO"
 ):
     """Setup inference environment.
 
@@ -568,7 +583,7 @@ def setup_inference_environment(
         Inference Environment.
     """
     env = setup_testing_environment(
-        run_name, base_directory, device, machine_rank, mixed_precision, cfg_file, debug=debug
+        run_name, base_directory, device, machine_rank, mixed_precision, cfg_file, debug=debug, logger_enabled=logger_enabled, log_level=log_level
     )
 
     environment = namedtuple(

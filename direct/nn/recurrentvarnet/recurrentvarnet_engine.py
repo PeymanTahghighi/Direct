@@ -41,7 +41,10 @@ class RecurrentVarNetEngine(MRIModelEngine):
             sampling_mask=data["sampling_mask"],
             sensitivity_map=data["sensitivity_map"],
         )
-        output_kspace = T.apply_padding(output_kspace, data.get("padding", None))
+        if 'pad_size' in data:
+            output_kspace = T.zero_pad_complex(output_kspace, data['pad_size']);
+        else:
+            output_kspace = T.apply_padding(output_kspace, data.get("padding", None))
 
         output_image = T.root_sum_of_squares(
             self.backward_operator(output_kspace, dim=self._spatial_dims),

@@ -18,7 +18,7 @@ from torch import nn
 from torch.cuda.amp import autocast
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
-
+from torchvision.transforms.functional import adjust_gamma
 import direct.data.transforms as T
 import direct.functionals as D
 from direct.config import BaseConfig
@@ -34,7 +34,6 @@ from direct.utils import (
     reduce_list_of_dicts,
 )
 from direct.utils.communication import reduce_tensor_dict
-
 
 class MRIModelEngine(Engine):
     """Engine for MRI models.
@@ -95,7 +94,9 @@ class MRIModelEngine(Engine):
         self,
         data: Dict[str, Any],
         loss_fns: Optional[Dict[str, Callable]] = None,
+        loss_fns_parameters: Optional[Dict[str, Callable]] = None,
         regularizer_fns: Optional[Dict[str, Callable]] = None,
+        inference: bool = False
     ) -> DoIterationOutput:
         """Performs forward method and calculates loss functions.
 
@@ -126,17 +127,26 @@ class MRIModelEngine(Engine):
         output_image: TensorOrNone
         output_kspace: TensorOrNone
 
+        output_norm = self.cfg.training.loss.output_norm
+        output_norm_param = self.cfg.training.loss.output_norm_param
+
         with autocast(enabled=self.mixed_precision):
             data["sensitivity_map"] = self.compute_sensitivity_map(data["sensitivity_map"])
 
             output_image, output_kspace = self.forward_function(data)
             output_image = T.modulus_if_complex(output_image, complex_axis=self._complex_dim)
 
+            if inference is False:
+                if output_norm == 'gamma':
+                    output_image = adjust_gamma(output_image, output_norm_param);
+                    data['target'] = adjust_gamma(data['target'], output_norm_param);
+            
+
             loss_dict = {k: torch.tensor([0.0], dtype=data["target"].dtype).to(self.device) for k in loss_fns.keys()}
             regularizer_dict = {
                 k: torch.tensor([0.0], dtype=data["target"].dtype).to(self.device) for k in regularizer_fns.keys()
             }
-            loss_dict = self.compute_loss_on_data(loss_dict, loss_fns, data, output_image, output_kspace)
+            loss_dict = self.compute_loss_on_data(loss_dict, loss_fns, loss_fns_parameters, data, output_image, output_kspace)
             regularizer_dict = self.compute_loss_on_data(
                 regularizer_dict, regularizer_fns, data, output_image, output_kspace
             )
@@ -159,7 +169,9 @@ class MRIModelEngine(Engine):
         self,
         data: Dict[str, Any],
         loss_fns: Optional[Dict[str, Callable]] = None,
+        loss_fns_parameters: Optional[Dict[str, Callable]] = None,
         regularizer_fns: Optional[Dict[str, Callable]] = None,
+        inference: bool = False
     ) -> DoIterationOutput:
         """Performs forward method and calculates loss functions.
 
@@ -373,6 +385,9 @@ class MRIModelEngine(Engine):
             target: torch.Tensor,
             reduction: str = "mean",
             reconstruction_size: Optional[Tuple] = None,
+            win_size:float = 7,
+            k1:float = 0.01,
+            k2:float = 0.03
         ) -> torch.Tensor:
             """Calculate SSIM loss given source image and target image.
 
@@ -406,7 +421,7 @@ class MRIModelEngine(Engine):
                 source_abs, target_abs = source, target;
             data_range = torch.tensor([target_abs.max()], device=target_abs.device)
 
-            ssim_loss = D.SSIMLoss().to(source_abs.device).forward(source_abs, target_abs, data_range=data_range)
+            ssim_loss = D.SSIMLoss(win_size=win_size, k1=k1, k2=k2).to(source_abs.device).forward(source_abs, target_abs, data_range=data_range)
 
             return ssim_loss
 
@@ -705,13 +720,19 @@ class MRIModelEngine(Engine):
 
         # Build losses
         loss_dict = {}
+        loss_param_dict = {}
         for curr_loss in self.cfg.training.loss.losses:  # type: ignore
             loss_fn = curr_loss.function
+            loss_param_dict[loss_fn] = {};
             if loss_fn in [LossFunType.L1_LOSS, LossFunType.KSPACE_L1_LOSS]:
                 loss_dict[loss_fn] = multiply_function(curr_loss.multiplier, l1_loss)
             elif loss_fn in [LossFunType.L2_LOSS, LossFunType.KSPACE_L2_LOSS]:
                 loss_dict[loss_fn] = multiply_function(curr_loss.multiplier, l2_loss)
             elif loss_fn == LossFunType.SSIM_LOSS:
+                for k in curr_loss.keys():
+                    if k != 'function' and k != 'multiplier':
+                        loss_param_dict[loss_fn].update({k: curr_loss[k]});
+
                 loss_dict[loss_fn] = multiply_function(curr_loss.multiplier, ssim_loss)
             elif loss_fn == LossFunType.SSIM_3D_LOSS:
                 loss_dict[loss_fn] = multiply_function(curr_loss.multiplier, ssim_3d_loss)
@@ -740,7 +761,7 @@ class MRIModelEngine(Engine):
             else:
                 raise ValueError(f"{loss_fn} not permissible.")
 
-        return loss_dict
+        return loss_dict, loss_param_dict
 
     def compute_sensitivity_map(self, sensitivity_map: torch.Tensor) -> torch.Tensor:
         r"""Computes sensitivity maps :math:`\{S^k\}_{k=1}^{n_c}` if `sensitivity_model` is available.
@@ -880,7 +901,7 @@ class MRIModelEngine(Engine):
 
             # Compute output
 
-            iteration_output = self._do_iteration(data, loss_fns=loss_fns, regularizer_fns=regularizer_fns)
+            iteration_output = self._do_iteration(data, loss_fns=loss_fns, regularizer_fns=regularizer_fns,  inference=True)
 
             scaling_factor = data['scaling_factor'];
             output = iteration_output.output_image
@@ -1028,7 +1049,7 @@ class MRIModelEngine(Engine):
                 last_filename = filename
 
             # Compute output
-            iteration_output = self._do_iteration_metamodel(data, loss_fns=loss_fns, regularizer_fns=regularizer_fns)
+            iteration_output = self._do_iteration_metamodel(data, loss_fns=loss_fns, regularizer_fns=regularizer_fns, inference = True)
 
             output = iteration_output.output_image.cpu()
             loss_dict = iteration_output.data_dict
@@ -1208,6 +1229,7 @@ class MRIModelEngine(Engine):
         self,
         loss_dict: Dict[str, torch.Tensor],
         loss_fns: Dict[str, Callable],
+        loss_fns_parameters: Dict[str, Callable],
         data: Dict[str, Any],
         output_image: Optional[torch.Tensor] = None,
         output_kspace: Optional[torch.Tensor] = None,
@@ -1230,7 +1252,7 @@ class MRIModelEngine(Engine):
                     )
                 else:
                     continue
-            loss_dict[key] = value + weight * loss_fns[key](output, target, "mean", reconstruction_size)
+            loss_dict[key] = value + weight * loss_fns[key](output, target, "mean", reconstruction_size, **loss_fns_parameters[key])
         return loss_dict
 
     def _forward_operator(self, image, sensitivity_map, sampling_mask):

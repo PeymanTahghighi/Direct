@@ -122,9 +122,9 @@ def main():
     # Data related comments.
     register_infer_subcommand(root_subparsers)
 
-    #args = root_parser.parse_args(['train','--cfg', 'configs/base_recurrentvarnet_predict.yaml', '--validation-data-type', 'equispaced'])
+    args = root_parser.parse_args(['train','--cfg', 'configs/base_recurrentvarnet_predict.yaml', '--validation-data-type', 'equispaced'])
     #args = root_parser.parse_args(['train','--cfg', 'configs/metamodel.yaml', '--metamodel', '--skip-cache'])
-    args = root_parser.parse_args(['predict','--cfg', 'configs/base_recurrentvarnet_predict.yaml', '--checkpoint', 'micro_recurrent_varnet_weights.pth', '--output_directory', 'test' , '--skip-cache'])
+    #args = root_parser.parse_args(['predict','--cfg', 'configs/base_recurrentvarnet_predict.yaml', '--checkpoint', 'micro_recurrent_varnet_weights.pth', '--output_directory', 'test' , '--skip-cache'])
     #args = root_parser.parse_args(['predict','--cfg', 'configs/metamodel.yaml', '--checkpoint', 'model_491000.pt', '--output_directory', 'test' , '--skip-cache', '--metamodel'])
     #args = root_parser.parse_args(['infer','--cfg', 'configs/metamodel.yaml', '--micro-model1-checkpoint', 'model_491000.pt','--micro-model2-checkpoint', 'model_491000.pt', '--meta-model-checkpoint', 'model_491000.pt' , '--skip-cache'])
     #print(args);
@@ -234,13 +234,13 @@ if __name__ == "__main__":
     ssim = fastmri_ssim(torch.from_numpy(tar).unsqueeze(1), torch.from_numpy(rec).unsqueeze(1));
     print(ssim);
 
-    with h5py.File('test/lcp_0.h5') as f:
-        rec = numpy.array(f['reconstruction']);
-        tar = numpy.array(f['target']);
-        for i in range(rec.shape[0]):
-            plt.figure();
-            plt.imshow(rec[i], cmap='gray');
-            plt.show();
+    # with h5py.File('test/lcp_0.h5') as f:
+    #     rec = numpy.array(f['reconstruction']);
+    #     tar = numpy.array(f['target']);
+    #     for i in range(rec.shape[0]):
+    #         plt.figure();
+    #         plt.imshow(rec[i], cmap='gray');
+    #         plt.show();
     
 
     # print(f'ssim {ssim}');
