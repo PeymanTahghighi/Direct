@@ -322,6 +322,7 @@ class MRIModelEngine(Engine):
             target: torch.Tensor,
             reduction: str = "mean",
             reconstruction_size: Optional[Tuple] = None,
+            focal_pow: float = None
         ) -> torch.Tensor:
             """Calculate L1 loss given source image and target.
 
@@ -344,9 +345,11 @@ class MRIModelEngine(Engine):
             if reconstruction_size is not None:
                 resolution = get_resolution(reconstruction_size)
                 source, target = _crop_volume(source, target, resolution)
-            l1_loss = F.l1_loss(source, target, reduction=reduction)
-
-            return l1_loss
+            l1_loss = F.l1_loss(source, target, reduction='none')
+            if focal_pow != None:
+                loss = torch.pow(l1_loss, focal_pow).mean();
+                return loss;
+            return l1_loss.mean();
 
         def l2_loss(
             source: torch.Tensor,
@@ -470,7 +473,7 @@ class MRIModelEngine(Engine):
             source: torch.Tensor,
             target: torch.Tensor,
             reduction: str = "mean",
-            reconstruction_size: Optional[Tuple] = None,
+            reconstruction_size: Optional[Tuple] = None
         ) -> torch.Tensor:
             """Calculate Sobel gradient L1 loss given source image and target image.
 
@@ -724,15 +727,14 @@ class MRIModelEngine(Engine):
         for curr_loss in self.cfg.training.loss.losses:  # type: ignore
             loss_fn = curr_loss.function
             loss_param_dict[loss_fn] = {};
+            for k in curr_loss.keys():
+                    if k != 'function' and k != 'multiplier':
+                        loss_param_dict[loss_fn].update({k: curr_loss[k]});
             if loss_fn in [LossFunType.L1_LOSS, LossFunType.KSPACE_L1_LOSS]:
                 loss_dict[loss_fn] = multiply_function(curr_loss.multiplier, l1_loss)
             elif loss_fn in [LossFunType.L2_LOSS, LossFunType.KSPACE_L2_LOSS]:
                 loss_dict[loss_fn] = multiply_function(curr_loss.multiplier, l2_loss)
             elif loss_fn == LossFunType.SSIM_LOSS:
-                for k in curr_loss.keys():
-                    if k != 'function' and k != 'multiplier':
-                        loss_param_dict[loss_fn].update({k: curr_loss[k]});
-
                 loss_dict[loss_fn] = multiply_function(curr_loss.multiplier, ssim_loss)
             elif loss_fn == LossFunType.SSIM_3D_LOSS:
                 loss_dict[loss_fn] = multiply_function(curr_loss.multiplier, ssim_3d_loss)
