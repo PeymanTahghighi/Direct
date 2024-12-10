@@ -140,7 +140,6 @@ class MRIModelEngine(Engine):
                 if output_norm == 'gamma':
                     output_image = adjust_gamma(output_image, output_norm_param);
                     data['target'] = adjust_gamma(data['target'], output_norm_param);
-            
 
             loss_dict = {k: torch.tensor([0.0], dtype=data["target"].dtype).to(self.device) for k in loss_fns.keys()}
             regularizer_dict = {
@@ -385,9 +384,10 @@ class MRIModelEngine(Engine):
             target: torch.Tensor,
             reduction: str = "mean",
             reconstruction_size: Optional[Tuple] = None,
-            win_size:float = 7,
-            k1:float = 0.01,
-            k2:float = 0.03
+            win_size: float = 7,
+            k1: float = 0.01,
+            k2: float = 0.03,
+            focal_pow: float = None
         ) -> torch.Tensor:
             """Calculate SSIM loss given source image and target image.
 
@@ -421,7 +421,7 @@ class MRIModelEngine(Engine):
                 source_abs, target_abs = source, target;
             data_range = torch.tensor([target_abs.max()], device=target_abs.device)
 
-            ssim_loss = D.SSIMLoss(win_size=win_size, k1=k1, k2=k2).to(source_abs.device).forward(source_abs, target_abs, data_range=data_range)
+            ssim_loss = D.SSIMLoss(win_size=win_size, k1=k1, k2=k2, focal_pow=focal_pow).to(source_abs.device).forward(source_abs, target_abs, data_range=data_range)
 
             return ssim_loss
 

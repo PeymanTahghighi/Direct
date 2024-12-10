@@ -352,7 +352,7 @@ def setup_common_environment(
     if isinstance (base_directory, pathlib.Path) is False:
         base_directory = pathlib.Path(base_directory);
     experiment_dir = base_directory / run_name
-    if communication.get_local_rank() == 0 and debug:
+    if communication.get_local_rank() == 0:
         # Want to prevent multiple workers from trying to write a directory
         # This is required in the logging below
         experiment_dir.mkdir(parents=True, exist_ok=True)

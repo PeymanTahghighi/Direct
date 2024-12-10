@@ -37,7 +37,7 @@ class SSIMLoss(nn.Module):
 
     """
 
-    def __init__(self, win_size=7, k1=0.01, k2=0.03) -> None:
+    def __init__(self, win_size=7, k1=0.01, k2=0.03, focal_pow = None) -> None:
         """Inits :class:`SSIMLoss`.
 
         Parameters
@@ -54,6 +54,7 @@ class SSIMLoss(nn.Module):
         self.k1, self.k2 = k1, k2
         self.register_buffer("w", torch.ones(1, 1, win_size, win_size) / win_size**2)
         NP = win_size**2
+        self.focal_pow = focal_pow;
         self.cov_norm = NP / (NP - 1)
 
     def forward(self, input_data: torch.Tensor, target_data: torch.Tensor, data_range: torch.Tensor) -> torch.Tensor:
@@ -92,6 +93,10 @@ class SSIMLoss(nn.Module):
         D = B1 * B2
         S = (A1 * A2) / D
 
+        if self.focal_pow != None:
+            focal_map = 1 - S;
+            focal_loss = torch.pow(focal_map, self.focal_pow).mean();
+            return focal_loss;
         return 1 - S.mean()
 
 
