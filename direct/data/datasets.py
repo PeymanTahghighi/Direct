@@ -440,7 +440,7 @@ class SpecialDataset(Dataset):
                     kspace_shape = data["kspace"].shape  # pylint: disable = E1101
                     num_slices = kspace_shape[0]
                     self.data += [(filepath, i) for i in range(num_slices)]
-                    self.volume_indices[filepath] = range(current_slice_number, current_slice_number + num_slices)
+                    self.volume_indices[pathlib.Path(filepath)] = range(current_slice_number, current_slice_number + num_slices)
                     current_slice_number += num_slices;
 
             except OSError as exc:
