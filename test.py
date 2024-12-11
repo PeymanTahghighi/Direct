@@ -140,13 +140,7 @@ def normalize(data, mi, ma):
 if __name__ == "__main__":
 
 
-    import pickle
-    import pathlib
-    pathlib.Path
-    temp = pathlib.PosixPath
-    pathlib.PosixPath = pathlib.WindowsPath
-    d = pickle.load(open('val_cache_FastMRI-brain.ch', 'rb'));
-    print(d);
+
     # import matplotlib.pyplot as plt
     # import h5py
     # import numpy
