@@ -411,7 +411,8 @@ class SpecialDataset(Dataset):
         # TODO: Such a support would also work for the sensitivity maps
         self.initial_images_key = initial_images_key
         self.initial_images = {}
-
+        self.dataset_description = kwargs.get("text_description", None)
+        self.text_description = kwargs.get("text_description", None)
         if initial_images:
             self.initial_images = {k.name: k for k in initial_images}
 
