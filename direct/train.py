@@ -85,7 +85,8 @@ def build_transforms_from_environment(env, dataset_config: DictConfig) -> Callab
         backward_operator=env.engine.backward_operator,
         mask_func=mask_func,
         to_tensor = True,
-        estimate_sensitivity_maps = False
+        estimate_sensitivity_maps = False,
+        
     )
 
    
@@ -143,12 +144,15 @@ def build_training_datasets_from_environment(
             dataset_args.update({"initial_kspaces": initial_kspaces})
         if data_sheet is not None:
             xls = pd.ExcelFile(data_sheet);
-            sheet_name = dataset_args['dataset_config']['sheet_name']
-            df = pd.read_excel(xls, sheet_name);
+            df = None;
+            sheet_name = None;
+            if 'sheet_name' in dataset_args['dataset_config']:
+                sheet_name = dataset_args['dataset_config']['sheet_name']
+                df = pd.read_excel(xls, sheet_name);
             
             data_root = dataset_config['base_path']
             dataset_args.update({"data_root": data_root})
-            filenames_filter = get_filenames_for_datasets(dataset_config['sheet_name'], 
+            filenames_filter = get_filenames_for_datasets(sheet_name, 
                                                           data_root, 
                                                           df, 
                                                           data_type=data_type,

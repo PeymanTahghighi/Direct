@@ -12,7 +12,7 @@ import pathlib
 import sys
 import xml.etree.ElementTree as etree  # nosec
 from enum import Enum
-from typing import Any, Callable, Optional, Sequence, Union
+from typing import Any, Callable, Optional, Sequence, Union, List, Tuple, Union, Dict
 from sklearn.utils import shuffle
 
 import pickle
@@ -270,7 +270,7 @@ class FastMRIDataset(H5SliceData):
         self.pass_mask = pass_mask
         extra_keys = ["mask"] if pass_mask else []
         extra_keys.append("ismrmrd_header")
-
+        
         super().__init__(
             root=data_root,
             filenames_filter=filenames_filter,
@@ -374,6 +374,146 @@ class FastMRIDataset(H5SliceData):
             mask = np.broadcast_to(mask, [kspace_shape[2], mask.shape[-1]])
             mask = mask[np.newaxis, np.newaxis, ..., np.newaxis]
         return mask
+
+class SpecialDataset(Dataset):
+    def __init__(
+        self,
+        data_root: pathlib.Path,
+        transform: Optional[Callable] = None,
+        data_cache_tranform: Optional[Callable] = None,
+        filenames_filter: Optional[list[PathOrString]] = None,
+        filenames_lists: Union[list[PathOrString], None] = None,
+        filenames_lists_root: Union[PathOrString, None] = None,
+        regex_filter: Optional[str] = None,
+        pass_mask: bool = False,
+        pass_max: bool = True,
+        initial_images: Union[list[pathlib.Path], None] = None,
+        initial_images_key: Optional[str] = None,
+        noise_data: Optional[dict] = None,
+        pass_h5s: Optional[dict] = None,
+        data_type = 'train',
+        validation_data_type = 'normal',
+        seq = 'all',
+        view = 'all',
+        accelerations = 4,
+        **kwargs,
+    ) -> None:
+        self.logger = logging.getLogger(type(self).__name__)
+        # TODO: Clean up Dataset class such that only **kwargs need to get parsed.
+        # BODY: Additional keysneeded for this dataset can be popped if needed.
+        self.pass_mask = pass_mask
+        extra_keys = ["mask"] if pass_mask else []
+        extra_keys.append("ismrmrd_header")
+
+
+        # TODO: Make exclusive or to give error when one of the two keys is not set.
+        # TODO: Convert into mixin, and add support to main image
+        # TODO: Such a support would also work for the sensitivity maps
+        self.initial_images_key = initial_images_key
+        self.initial_images = {}
+
+        if initial_images:
+            self.initial_images = {k.name: k for k in initial_images}
+
+        self.noise_data = noise_data
+        self.transform = transform
+        self.data_type = data_type;
+        self.data: List[Tuple] = []
+        self.ndim = 2
+
+        self.volume_indices: Dict[pathlib.Path, range] = {}
+
+        self._preprocess(filenames_filter);
+    
+    
+    def _preprocess(self, filepaths):
+        base_root = os.path.dirname(filepaths[0]);
+        if os.path.exists(os.path.join(base_root, f'cache_{self.data_type}')) is False:
+            os.makedirs(os.path.join(base_root, f'cache_{self.data_type}'));
+        current_slice_number = 0
+        for idx, filepath in enumerate(filepaths):
+            filename = os.path.basename(filepath);
+            filename = filename[:filename.rfind('.')];
+            try:
+                with h5py.File(filepath, "r") as data:
+                    kspace_shape = data["kspace"].shape  # pylint: disable = E1101
+                    num_slices = kspace_shape[0]
+                    self.data += [(filepath, i) for i in range(num_slices)]
+                    self.volume_indices[filepath] = range(current_slice_number, current_slice_number + num_slices)
+                    current_slice_number += num_slices;
+
+            except OSError as exc:
+                self.logger.warning("%s failed with OSError: %s. Skipping...", filepath, exc)
+                continue
+
+    def __len__(self):
+        return len(self.data)
+    
+    def _center_mask_func(self, num_cols: int, num_low_freqs: int) -> np.ndarray:
+        """Creates the ACS (center) mask.
+
+        Parameters
+        ----------
+        num_cols : int
+            Number of center columns/lines.
+        num_low_freqs : int
+            Number of low-frequency columns/lines.
+
+        Returns
+        -------
+        np.ndarray
+            ACS (center) mask.
+        """
+        # create the mask
+        mask = np.zeros(num_cols, dtype=bool)
+        pad = (num_cols - num_low_freqs + 1) // 2
+        mask[pad : pad + num_low_freqs] = True
+
+        return mask
+    
+    def __getitem__(self, idx: int) -> dict[str, Any]:
+        sample = {}
+        acc = False;
+        slc = self.data[idx][1]
+        with h5py.File(self.data[idx][0], 'r') as f:
+            kspace = np.array(f['kspace']).squeeze()[slc];
+            if 'mask' in f:
+                acc = True;
+                mask = np.array(f['mask'])[slc];
+                sample.update({'sampling_mask': mask});
+            if 'target' in f:
+                target = np.array(f['target']).squeeze()[slc];
+                sample.update({'kspace': target});
+            if acc is False:
+                sample.update({'kspace': kspace});
+            else:
+                sample.update({'masked_kspace': kspace});
+        sample.update({'filename': self.data[idx][0]})
+        sample.update(parse_fastmri_header(sample, "ismrmrd_header"))
+        if "ismrmrd_header" in sample.keys():
+            del sample["ismrmrd_header"]
+
+        #Explicitly zero-out the outer parts of kspace which are padded
+        sample["kspace"] = explicit_zero_padding(
+            sample["kspace"], sample["padding_left"], sample["padding_right"]
+        )
+
+        num_low_freqs = int(round(kspace.shape[2] * 0.08))
+        acs = self._center_mask_func(num_cols=kspace.shape[2], num_low_freqs=num_low_freqs)
+        acs = np.tile(acs[np.newaxis, np.newaxis,:, np.newaxis], (1, kspace.shape[1], 1, 1));
+        sample['acs_mask'] = acs;
+        sample['slice_no'] = slc;
+
+        transforms = list(self.transform.transforms)
+        for i,t in enumerate(transforms):
+            if acc and i == 3:
+                continue;
+            sample = t(sample)
+
+        if self.noise_data:
+            sample["loglikelihood_scaling"] = self.noise_data[sample["slice_no"]]
+
+        return sample
 
 class ImageSpaceDataset(Dataset):
     def __init__(self, 

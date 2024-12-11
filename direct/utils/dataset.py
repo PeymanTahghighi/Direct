@@ -158,15 +158,18 @@ def get_filenames_for_datasets(dataset_name: str,
             file_names = glob(os.path.join(base_path, '*.h5'));
             ret.extend(file_names);
         else:
-            file_names = ([data_frame.loc[l, 'Name'] for l in np.where(data_frame['New subsets'] == data_type)[0]])
-            if seq != 'all':
-                file_names_seq = ([data_frame.loc[l, 'Name'] for l in np.where(data_frame['seq'] == seq)[0]])
-                file_names = np.intersect1d(file_names, file_names_seq);
-            if view != 'all':
-                file_names_view = ([data_frame.loc[l, 'Name'] for l in np.where(data_frame['view'] == view)[0]])
-                file_names = np.intersect1d(file_names, file_names_view);
-            
-            ret = [os.path.join(base_path, f) for f in file_names];
+            if dataset_name != None:
+                file_names = ([data_frame.loc[l, 'Name'] for l in np.where(data_frame['New subsets'] == data_type)[0]])
+                if seq != 'all':
+                    file_names_seq = ([data_frame.loc[l, 'Name'] for l in np.where(data_frame['seq'] == seq)[0]])
+                    file_names = np.intersect1d(file_names, file_names_seq);
+                if view != 'all':
+                    file_names_view = ([data_frame.loc[l, 'Name'] for l in np.where(data_frame['view'] == view)[0]])
+                    file_names = np.intersect1d(file_names, file_names_view);
+                
+                ret = [os.path.join(base_path, f) for f in file_names];
+            else:
+                ret.extend(glob(os.path.join(base_path,'*.h5')))
     else:
         file_names = ([data_frame.loc[l, 'Name'] for l in np.where(data_frame['New subsets'] == data_type)[0]])
         for i in range(len(base_path)):

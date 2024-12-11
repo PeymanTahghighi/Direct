@@ -201,6 +201,9 @@ class CMRxReconConfig(DatasetConfig):
 class FastMRIConfig(H5SliceConfig):
     pass_attrs: bool = True
 
+@dataclass
+class SpecialConfig(H5SliceConfig):
+    pass_attrs: bool = True
 
 @dataclass
 class CalgaryCampinasConfig(H5SliceConfig):

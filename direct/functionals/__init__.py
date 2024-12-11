@@ -38,3 +38,4 @@ from direct.functionals.nmse import *
 from direct.functionals.psnr import *
 from direct.functionals.snr import *
 from direct.functionals.ssim import *
+from direct.functionals.iwssim import *
