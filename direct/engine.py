@@ -352,7 +352,7 @@ class Engine(ABC, DataDimensionality):
             sys.exit(-1)
         for data, iter_idx in zip(data_loader, range(start_iter, total_iter)):
             if 'skip' in data:
-                if data['skip'] is True:
+                if data['skip'].item() is True:
                     continue;
             if iter_idx == 0:
                 self.log_first_training_example_and_model(data)
