@@ -346,9 +346,12 @@ class FastMRIDataset(H5SliceData):
         sample["kspace"] = explicit_zero_padding(
             sample["kspace"], sample["padding_left"], sample["padding_right"]
         )
-
-        if self.transform:
-            sample = self.transform(sample)
+        try:
+            if self.transform:
+                sample = self.transform(sample)
+        except:
+            print(f"error in transform {sample['filename']}");
+            sample['skip'] = True;
 
         if self.noise_data:
             sample["loglikelihood_scaling"] = self.noise_data[sample["slice_no"]]
