@@ -146,6 +146,7 @@ def build_training_datasets_from_environment(
             xls = pd.ExcelFile(data_sheet);
             df = None;
             sheet_name = None;
+            dataset_disc = dataset_args['dataset_config']['text_description']
             if 'sheet_name' in dataset_args['dataset_config']:
                 sheet_name = dataset_args['dataset_config']['sheet_name']
                 df = pd.read_excel(xls, sheet_name);
@@ -153,6 +154,7 @@ def build_training_datasets_from_environment(
             data_root = dataset_config['base_path']
             dataset_args.update({"data_root": data_root})
             filenames_filter = get_filenames_for_datasets(sheet_name, 
+                                                          dataset_disc,
                                                           data_root, 
                                                           df, 
                                                           data_type=data_type,

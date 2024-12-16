@@ -121,6 +121,7 @@ def get_filenames_for_datasets_from_config(cfg, files_root: PathOrString, data_r
 
 
 def get_filenames_for_datasets(dataset_name: str, 
+                               dataset_disc: str,
                                base_path, data_frame: pd, 
                                data_type = 'train',
                                seq: str = 'all', 
@@ -157,6 +158,7 @@ def get_filenames_for_datasets(dataset_name: str,
         elif dataset_name == 'Phantom':
             file_names = glob(os.path.join(base_path, '*.h5'));
             ret.extend(file_names);
+        
         else:
             if dataset_name != None:
                 file_names = ([data_frame.loc[l, 'Name'] for l in np.where(data_frame['New subsets'] == data_type)[0]])
@@ -169,7 +171,10 @@ def get_filenames_for_datasets(dataset_name: str,
                 
                 ret = [os.path.join(base_path, f) for f in file_names];
             else:
-                ret.extend(glob(os.path.join(base_path,'*.h5')))
+                if dataset_disc == 'Special':
+                    ret.extend(glob(os.path.join(base_path,'*.h5')))
+                elif dataset_disc == 'Synthetic':
+                    ret.extend(glob(os.path.join(base_path,'*.h5')))
     else:
         file_names = ([data_frame.loc[l, 'Name'] for l in np.where(data_frame['New subsets'] == data_type)[0]])
         for i in range(len(base_path)):

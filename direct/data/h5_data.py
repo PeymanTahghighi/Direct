@@ -185,7 +185,7 @@ class H5SliceData(Dataset):
         current_slice_number = 0
         filepaths = shuffle(filepaths, random_state = 42);
         self.logger.info(f'total file path for validation {len(filepaths)}, took 30%: {int(len(filepaths)*0.3)}')
-        filepaths = filepaths[:int(len(filepaths)*0.3)];
+        filepaths = filepaths[:max(int(len(filepaths)*0.3), 1)];
 
         for idx, filepath in enumerate(filepaths):
             filename = os.path.basename(filepath);
